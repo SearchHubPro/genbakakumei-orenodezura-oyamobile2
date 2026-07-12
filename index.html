@@ -418,13 +418,14 @@
 
             attendance.forEach(r => {
                 const wInfo = workers.find(w => w.name === r.worker_name);
-                // 💡 モーダルが開くときに一意のIDを正しく引き渡せるよう、r.rowにr.idを格納
                 r.row = r.id;
                 r.date = r.work_date;
                 r.name = r.worker_name;
                 r.site = r.site_name;
-                r.wage = wInfo ? wInfo.wage : 20000;
-                r.others = r.remarks;
+                // 💡 マスター単価での上書きをヤメ。DBに保存されている金額（r.wage）をそのまま優先して使う
+                r.wage = (r.wage !== undefined && r.wage !== null) ? r.wage : (wInfo ? wInfo.wage : 20000);
+                // 💡 写真を確認するとカラム名は「others」なので、そのまま連動させる
+                r.others = r.others;
                 r.clientCompany = r.client_company;
             });
 
@@ -720,11 +721,11 @@
             worker_name: document.getElementById('editName').value, 
             site_name: document.getElementById('editSite').value, 
             headcount: Number(document.getElementById('editHeadcount').value) || 1, 
-            // 💡 抜け落ちていた日当（wage）の送信データを追加
+            // 💡 写真の通り、実在する「wage」カラムに数値をきっちり乗せる
             wage: Number(document.getElementById('editWage').value) || 0,
             client_company: document.getElementById('editClientCompany').value.trim(), 
-            // 💡 カラム名をテーブルの正しい定義である「remarks」に戻す
-            remarks: document.getElementById('editOthers').value || "",
+            // 💡 写真の通り、備考欄のカラム名は「others」なので、こちらに連動させる
+            others: document.getElementById('editOthers').value || "",
             gasoline: Number(document.getElementById('editGasoline').value) || 0,
             highway: Number(document.getElementById('editHighway').value) || 0,
             parking: Number(document.getElementById('editParking').value) || 0,
