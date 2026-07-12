@@ -617,7 +617,8 @@
             worker_name: document.getElementById('reportName').value,
             headcount: Number(document.getElementById('reportHeadcount').value) || 1,
             client_company: document.getElementById('reportClientCompany').value || "",
-            remarks: document.getElementById('reportOthers').value || ""
+            // 💡 remarks から others に修正
+            others: document.getElementById('reportOthers').value || ""
         };
         
         try {
@@ -709,8 +710,10 @@
             site_name: document.getElementById('editSite').value, 
             headcount: Number(document.getElementById('editHeadcount').value) || 1, 
             client_company: document.getElementById('editClientCompany').value.trim(), 
-            remarks: document.getElementById('editOthers').value,
+            // 💡 remarks から others に修正
+            others: document.getElementById('editOthers').value || "",
             gasoline: Number(document.getElementById('editGasoline').value) || 0,
+            // ...
             highway: Number(document.getElementById('editHighway').value) || 0,
             parking: Number(document.getElementById('editParking').value) || 0,
             misc: Number(document.getElementById('editMisc').value) || 0
