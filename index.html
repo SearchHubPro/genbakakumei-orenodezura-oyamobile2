@@ -203,7 +203,7 @@
             <h3 style="margin-top:0; color:#dc2626;"><i class="fas fa-user-hard-hat"></i> 子方の追加</h3>
             <input type="text" id="newWorker" placeholder="名前 (スペースなし推奨)">
             <div style="display: flex; gap: 8px;">
-                <input type="text" id="newPin" placeholder="PIN(8桁)" maxlength="8" style="flex:1;">
+                <input type="text" id="newPin" placeholder="PIN(4桁)" maxlength="4" style="flex:1;">
                 <input type="number" id="newWage" placeholder="基本日当" style="flex:1.5;">
                 <select id="newTaxType" style="flex:1.2; font-weight:bold;">
                     <option value="税込">税込</option>
@@ -768,6 +768,10 @@
             const pay = document.getElementById('newPayDate').value.trim();
             const tax = document.getElementById('newTaxType').value;
             if(!w || !pin || !wage) return alert('入力不足');
+            
+            // 💡 4桁きっちり入力されているかのチェックを追加
+            if(pin.length !== 4) return alert('PINコードは4桁で入力してください');
+            
             payload = { name: w, pin: pin, wage: Number(wage), closing: Number(closing), pay_date: pay, tax_type: tax };
         }
 
@@ -809,7 +813,8 @@
                 <div style="padding: 8px; border-bottom: 1px solid #e9d8fd; margin-bottom: 6px; background: #fff; border-radius: 6px;">
                     <div style="display: flex; gap: 4px; margin-bottom: 4px;">
                         <input type="text" id="editWNameMob_${idx}" class="edit-input-mob" style="flex:1.5;" value="${w.name}">
-                        <input type="text" id="editWPinMob_${idx}" class="edit-input-mob" style="flex:0.8;" value="${w.pin || ''}" maxlength="8">
+                        // 💡 モバイル側の一覧編集欄もmaxlengthを4に変更
+<input type="text" id="editWPinMob_${idx}" class="edit-input-mob" style="flex:0.8;" value="${w.pin || ''}" maxlength="4">
                         <input type="number" id="editWWageMob_${idx}" class="edit-input-mob" style="flex:1.2;" value="${w.wage}">
                         <select id="editWTaxMob_${idx}" class="edit-input-mob" style="flex:1.2; padding:4px; font-size:12px;">
                             <option value="税込" ${w.tax_type !== '税別' ? 'selected' : ''}>税込</option>
