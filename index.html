@@ -319,11 +319,17 @@
     // 💡 PC版から完全にトレースした正しい接続設定とヘッダー
     const SUPABASE_URL = "https://gifwnwwxviasnsjqyyzr.supabase.co/rest/v1";
     const SUPABASE_KEY = "sb_publishable_Vhhe7TrF5XsP6vF_xOm_Kw_P2R0B5wi";
+    
+    // 💡 ローカルに保存されているライセンスキーを取得
+    const currentLicense = localStorage.getItem('oreno_boss_license') || "";
+    
+    // 💡 ヘッダーに x-license-key を追加してSupabaseの壁（RLS）を突破する
     const supabaseHeaders = {
         "apikey": SUPABASE_KEY,
         "Authorization": `Bearer ${SUPABASE_KEY}`,
         "Content-Type": "application/json",
-        "Prefer": "return=representation"
+        "Prefer": "return=representation",
+        "x-license-key": currentLicense
     };
 
     const LICENSE_KEY = 'oreno_boss_license';
@@ -630,11 +636,12 @@
             headcount: Number(document.getElementById('reportHeadcount').value) || 1,
             client_company: document.getElementById('reportClientCompany').value || "",
             others: document.getElementById('reportOthers').value || "",
-            // 💡 経費カラムを同じレコードに統合。空欄なら 0 を入れる
             gasoline: Number(document.getElementById('expGas').value) || 0,
             highway: Number(document.getElementById('expHigh').value) || 0,
             parking: Number(document.getElementById('expPark').value) || 0,
-            misc: Number(document.getElementById('expMisc').value) || 0
+            misc: Number(document.getElementById('expMisc').value) || 0,
+            // 💡 データの所有者を明確にするためライセンスキーを自動追加
+            license_key: myLicense
         };
         
         try {
@@ -768,7 +775,8 @@
             const v = document.getElementById('newSite').value.trim(); 
             const c = document.getElementById('newClientCompany').value.trim();
             if(!v) return; 
-            payload = { name: v, company: c };
+            // 💡 license_key を追加
+            payload = { name: v, company: c, license_key: myLicense };
         } else {
             const w = document.getElementById('newWorker').value.trim(); 
             const pin = document.getElementById('newPin').value.trim(); 
@@ -777,11 +785,9 @@
             const pay = document.getElementById('newPayDate').value.trim();
             const tax = document.getElementById('newTaxType').value;
             if(!w || !pin || !wage) return alert('入力不足');
-            
-            // 💡 4桁きっちり入力されているかのチェックを追加
             if(pin.length !== 4) return alert('PINコードは4桁で入力してください');
-            
-            payload = { name: w, pin: pin, wage: Number(wage), closing: Number(closing), pay_date: pay, tax_type: tax };
+            // 💡 license_key を追加
+            payload = { name: w, pin: pin, wage: Number(wage), closing: Number(closing), pay_date: pay, tax_type: tax, license_key: myLicense };
         }
 
         const originalText = btn.innerHTML;
