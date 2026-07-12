@@ -607,46 +607,45 @@
     }
 
     async function submitAttendance(e) {
-    e.preventDefault();
-    const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = '送信中...';
-    
-    // globalDataから選択された現場と子方の正しいオブジェクトを抽出する
-    const selectedSiteName = document.getElementById('reportSite').value;
-    const selectedWorkerName = document.getElementById('reportName').value;
-    
-    const payload = {
-        work_date: document.getElementById('reportDate').value,
-        site_name: selectedSiteName,
-        worker_name: selectedWorkerName,
-        headcount: Number(document.getElementById('reportHeadcount').value) || 1,
-        client_company: document.getElementById('reportClientCompany').value || "",
-        remarks: document.getElementById('reportOthers').value || ""
-    };
-    
-    try {
-        const res = await fetch(`${SUPABASE_URL}/attendance`, {
-            method: 'POST',
-            headers: supabaseHeaders,
-            body: JSON.stringify(payload)
-        });
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = '送信中...';
         
-        // 💡 エラーの時にコンソールに詳細を出すようにして原因を即特定できるようにする
-        if (!res.ok) {
-            const errLog = await res.json();
-            console.error("Supabaseエラー詳細:", errLog);
-            throw new Error();
+        // 💡 nullやundefinedによるデータベースエラーを防ぐため、空文字を確実にデフォルト処理
+        const payload = {
+            work_date: document.getElementById('reportDate').value,
+            site_name: document.getElementById('reportSite').value,
+            worker_name: document.getElementById('reportName').value,
+            headcount: Number(document.getElementById('reportHeadcount').value) || 1,
+            client_company: document.getElementById('reportClientCompany').value || "",
+            remarks: document.getElementById('reportOthers').value || ""
+        };
+        
+        try {
+            const res = await fetch(`${SUPABASE_URL}/attendance`, {
+                method: 'POST',
+                headers: supabaseHeaders,
+                body: JSON.stringify(payload)
+            });
+            
+            if (!res.ok) {
+                // 💡 Objectの中身（エラーメッセージ）をテキストとしてぶっこ抜く
+                const errLog = await res.text();
+                console.error("Supabaseエラー詳細（生データ）:", errLog);
+                alert("データベース登録拒否:\n" + errLog);
+                throw new Error();
+            }
+            
+            alert('出面を正常に記録しました！');
+            document.getElementById('reportOthers').value = ''; 
+            document.getElementById('reportHeadcount').value = '1'; 
+            document.getElementById('reportClientCompany').value = ''; 
+            loadData(); 
+        } catch (err) { 
+            // 上のalertを通らない未知のエラーのみここでキャッチ
+            if(btn.innerText === '送信中...') alert('予期せぬ通信エラーが発生しました'); 
         }
-        
-        alert('出面を正常に記録しました！');
-        document.getElementById('reportOthers').value = ''; 
-        document.getElementById('reportHeadcount').value = '1'; 
-        document.getElementById('reportClientCompany').value = ''; 
-        loadData(); 
-    } catch (err) { 
-        alert('通信エラーが発生しました。ブラウザのコンソール(F12)を確認してください。'); 
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> 出面を記録する';
     }
-    btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> 出面を記録する';
-}
 
     async function submitExpense() {
         const gas = Number(document.getElementById('expGas').value) || 0;
