@@ -64,6 +64,7 @@
 </head>
 <body>
 
+<!-- 初期設定画面 -->
 <div id="settingsView" class="container" style="display: none; margin-top: 20px;">
     <div class="card" style="border: 2px solid #3182ce;">
         <h2 style="color: #1a365d; text-align: center; margin-top:0;"><i class="fas fa-mobile-alt"></i> 親方モバイル設定</h2>
@@ -72,11 +73,12 @@
         <label>PINコード (8桁)</label>
         <input type="password" id="pinInput" placeholder="8桁の数字" maxlength="8">
         <label>会社名</label>
-        <input type="text" id="companyNameInput" placeholder="例: （株）現場革命">
+        <input type="text" id="companyNameInput" placeholder="例: （株）金田組">
         <button class="btn btn-green" onclick="saveSettings()">設定を保存して開始</button>
     </div>
 </div>
 
+<!-- エラー画面 -->
 <div id="lockView" style="display: none;">
     <h1 style="color: #c53030; font-size: 50px; margin: 0 0 10px 0;"><i class="fas fa-lock"></i></h1>
     <h2 style="color: #c53030; margin-top:0;">設定エラー</h2>
@@ -84,12 +86,14 @@
     <button class="btn btn-gray" onclick="resetLicense()">設定をやり直す</button>
 </div>
 
+<!-- メイン画面 -->
 <div id="mainApp" style="display: none;">
     <div class="header">
         <h1>俺の出面 - 親方モバイル</h1>
         <div class="comp-name" id="displayCompName">親方モード稼働中</div>
     </div>
 
+    <!-- 入力タブ -->
     <div id="view-report" class="view active container">
         <div class="card">
             <h2 style="font-size: 16px; margin-top:0; color:#1a365d; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;"><i class="fas fa-bolt"></i> 顔パス出面入力（PIN不要）</h2>
@@ -132,6 +136,7 @@
         </div>
     </div>
 
+    <!-- 管理タブ -->
     <div id="view-dash" class="view container">
         <button class="btn" style="background:#10b981; color:#fff; margin-bottom:12px;" onclick="openAiModal()">
             <i class="fas fa-robot"></i> 俺の右腕 (AIアシスタント)
@@ -184,6 +189,7 @@
         <div id="recordList"></div>
     </div>
 
+    <!-- 設定タブ -->
     <div id="view-settings" class="view container">
         <div class="card">
             <h3 style="margin-top:0; color:#1a365d;"><i class="fas fa-building"></i> 現場の追加</h3>
@@ -197,7 +203,7 @@
             <h3 style="margin-top:0; color:#dc2626;"><i class="fas fa-user-hard-hat"></i> 子方の追加</h3>
             <input type="text" id="newWorker" placeholder="名前 (スペースなし推奨)">
             <div style="display: flex; gap: 8px;">
-                <input type="text" id="newPin" placeholder="PIN(4桁)" maxlength="4" style="flex:1;">
+                <input type="text" id="newPin" placeholder="PIN(8桁)" maxlength="8" style="flex:1;">
                 <input type="number" id="newWage" placeholder="基本日当" style="flex:1.5;">
                 <select id="newTaxType" style="flex:1.2; font-weight:bold;">
                     <option value="税込">税込</option>
@@ -233,6 +239,7 @@
     </div>
 </div>
 
+<!-- 出面・経費データ編集モーダル -->
 <div id="editModal" class="modal">
     <div class="modal-content">
         <h3 style="margin-top:0; color:#1a365d; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">データの編集</h3>
@@ -268,6 +275,7 @@
     </div>
 </div>
 
+<!-- 右腕AIモーダル -->
 <div id="aiModal" class="modal">
     <div class="modal-content">
         <h3 style="display: flex; justify-content: space-between; align-items: center; margin-top:0; border-bottom: 2px solid #edf2f7; padding-bottom: 8px;">
@@ -308,7 +316,7 @@
 </div>
 
 <script>
-    const SUPABASE_BASE_URL = 'https://gifwnwwxviasnsjqyyzr.supabase.co';
+    const SUPABASE_URL = "https://gifwnwwxviasnsjqyyzr.supabase.co/rest/v1";
     const LICENSE_KEY = 'oreno_boss_license';
     const PIN_KEY = 'oreno_boss_pin';
     const COMP_NAME_KEY = 'oreno_boss_company_name';
@@ -317,10 +325,12 @@
     let myPin = localStorage.getItem(PIN_KEY);
     let globalData = { attendance: [], workers: [], sites: [], months: [] };
 
-    // 💡 修正：親モバイル側も、認証の邪魔をしていた余計な2行を完全に削除しました
+    // 🔌 PC版から100%完全コピーした正しい伝送用ヘッダー
     const supabaseHeaders = {
-        'apikey': myLicense || '',
-        'Content-Type': 'application/json'
+        "apikey": myLicense || '',
+        "Authorization": `Bearer ${myLicense || ''}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
     };
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -343,7 +353,7 @@
 
     async function bootApp() {
         try {
-            const res = await fetch(`${SUPABASE_BASE_URL}/licenses?license_key=eq.${encodeURIComponent(myLicense)}&pin_code=eq.${encodeURIComponent(myPin)}`, { headers: supabaseHeaders });
+            const res = await fetch(`${SUPABASE_URL}/licenses?license_key=eq.${encodeURIComponent(myLicense)}&pin_code=eq.${encodeURIComponent(myPin)}`, { headers: supabaseHeaders });
             const json = await res.json();
 
             if (json && json.length > 0 && json[0].is_active) {
@@ -396,22 +406,20 @@
         document.getElementById('recordList').innerHTML = '<div style="text-align:center; padding:20px; color:#a0aec0;"><i class="fas fa-spinner fa-spin"></i> 読込中...</div>';
         const selectedMonth = document.getElementById('filterMonth').value;
         try {
-            // Supabaseから各データを一斉取得してglobalData構造にマッピング
             const [attRes, workRes, siteRes] = await Promise.all([
-                fetch(`${SUPABASE_BASE_URL}/attendance?select=*`, { headers: supabaseHeaders }),
-                fetch(`${SUPABASE_BASE_URL}/workers?select=*`, { headers: supabaseHeaders }),
-                fetch(`${SUPABASE_BASE_URL}/sites?select=*`, { headers: supabaseHeaders })
+                fetch(`${SUPABASE_URL}/attendance?order=work_date.desc`, { headers: supabaseHeaders }),
+                fetch(`${SUPABASE_URL}/workers`, { headers: supabaseHeaders }),
+                fetch(`${SUPABASE_URL}/sites`, { headers: supabaseHeaders })
             ]);
 
             const [attendance, workers, sites] = await Promise.all([attRes.json(), workRes.json(), siteRes.json()]);
+            const months = Array.from(new Set(attendance.map(r => r.work_date?.substring(0, 7)))).sort().reverse();
 
-            // 互換性のためのデータ補正と月リスト抽出
-            const months = Array.from(new Set(attendance.map(r => r.date.substring(0, 7))));
-
-            // 子方の給料を計算するために単価などをattendanceレコードに紐付け
             attendance.forEach(r => {
                 const wInfo = workers.find(w => w.name === r.worker_name);
+                r.date = r.work_date;
                 r.name = r.worker_name;
+                r.site = r.site_name;
                 r.wage = wInfo ? wInfo.wage : 20000;
                 r.others = r.remarks;
                 r.clientCompany = r.client_company;
@@ -555,7 +563,7 @@
         } else {
             filtered.sort((a, b) => a.date < b.date ? 1 : -1).forEach((r, index) => {
                 const btnId = 'editBtnMob_' + index;
-                const hc = r.headcount || 1; 
+                const hc = r.headcount || 0; 
                 
                 const wInfo = globalData.workers.find(w => w.name === r.name);
                 const isTaxExc = wInfo && wInfo.taxType === '税別';
@@ -598,20 +606,20 @@
         const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = '送信中...';
         
         const payload = {
-            date: document.getElementById('workDate' ? 'workDate' : 'reportDate').value,
-            site: document.getElementById('reportSite').value,
+            work_date: document.getElementById('reportDate').value,
+            site_name: document.getElementById('reportSite').value,
             worker_name: document.getElementById('reportName').value,
             headcount: Number(document.getElementById('reportHeadcount').value) || 1,
             client_company: document.getElementById('reportClientCompany').value,
             remarks: document.getElementById('reportOthers').value
         };
         try {
-            const res = await fetch(`${SUPABASE_BASE_URL}/attendance`, {
+            const res = await fetch(`${SUPABASE_URL}/attendance`, {
                 method: 'POST',
                 headers: supabaseHeaders,
                 body: JSON.stringify(payload)
             });
-            if (!res.ok) throw new Error('送信エラー');
+            if (!res.ok) throw new Error();
             alert('出面を正常に送信しました！');
             document.getElementById('reportOthers').value = ''; 
             document.getElementById('reportHeadcount').value = '1'; 
@@ -634,18 +642,20 @@
         btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 送信中...';
 
         const payload = {
-            date: document.getElementById('reportDate').value,
+            work_date: document.getElementById('reportDate').value,
+            site_name: "経費精算",
             worker_name: document.getElementById('reportName').value, 
-            gasoline: gas, highway: high, parking: park, misc: misc
+            gasoline: gas, highway: high, parking: park, misc: misc,
+            headcount: 0
         };
 
         try {
-            const res = await fetch(`${SUPABASE_BASE_URL}/expenses`, {
+            const res = await fetch(`${SUPABASE_URL}/attendance`, {
                 method: 'POST',
                 headers: supabaseHeaders,
                 body: JSON.stringify(payload)
             });
-            if (!res.ok) throw new Error('経費送信エラー');
+            if (!res.ok) throw new Error();
             alert('経費を正常に送信しました！');
             document.getElementById('expGas').value = ''; document.getElementById('expHigh').value = '';
             document.getElementById('expPark').value = ''; document.getElementById('expMisc').value = '';
@@ -655,7 +665,7 @@
     }
 
     function openEditModal(rowObj) {
-        document.getElementById('editRow').value = rowObj.id; // Supabaseの主キーID
+        document.getElementById('editRow').value = rowObj.row;
         document.getElementById('editDate').value = rowObj.date;
         document.getElementById('editName').value = rowObj.name;
         document.getElementById('editSite').value = rowObj.site;
@@ -664,7 +674,6 @@
         document.getElementById('editClientCompany').value = rowObj.clientCompany || '';
         document.getElementById('editOthers').value = rowObj.others || '';
         
-        // 当該日付と同じ名前の経費があるか検索して代入
         document.getElementById('editGasoline').value = rowObj.gasoline || '';
         document.getElementById('editHighway').value = rowObj.highway || '';
         document.getElementById('editParking').value = rowObj.parking || '';
@@ -677,15 +686,19 @@
     async function saveRecord() {
         const id = document.getElementById('editRow').value;
         const payload = {
-            date: document.getElementById('editDate').value, 
+            work_date: document.getElementById('editDate').value, 
             worker_name: document.getElementById('editName').value, 
-            site: document.getElementById('editSite').value, 
+            site_name: document.getElementById('editSite').value, 
             headcount: Number(document.getElementById('editHeadcount').value) || 1, 
             client_company: document.getElementById('editClientCompany').value.trim(), 
-            remarks: document.getElementById('editOthers').value
+            remarks: document.getElementById('editOthers').value,
+            gasoline: Number(document.getElementById('editGasoline').value) || 0,
+            highway: Number(document.getElementById('editHighway').value) || 0,
+            parking: Number(document.getElementById('editParking').value) || 0,
+            misc: Number(document.getElementById('editMisc').value) || 0
         };
         try {
-            await fetch(`${SUPABASE_BASE_URL}/attendance?id=eq.${id}`, {
+            await fetch(`${SUPABASE_URL}/attendance?id=eq.${id}`, {
                 method: 'PATCH',
                 headers: supabaseHeaders,
                 body: JSON.stringify(payload)
@@ -698,7 +711,7 @@
         if(!confirm('本当に削除しますか？')) return;
         const id = document.getElementById('editRow').value;
         try {
-            await fetch(`${SUPABASE_BASE_URL}/attendance?id=eq.${id}`, { method: 'DELETE', headers: supabaseHeaders });
+            await fetch(`${SUPABASE_URL}/attendance?id=eq.${id}`, { method: 'DELETE', headers: supabaseHeaders });
             closeModal(); loadData();
         } catch (e) { alert('削除失敗'); }
     }
@@ -720,14 +733,14 @@
             const pay = document.getElementById('newPayDate').value.trim();
             const tax = document.getElementById('newTaxType').value;
             if(!w || !pin || !wage) return alert('入力不足');
-            payload = { name: w, pin: pin, wage: Number(wage), closing: Number(closing), payDate: pay, taxType: tax };
+            payload = { name: w, pin: pin, wage: Number(wage), closing: Number(closing), pay_date: pay, tax_type: tax };
         }
 
         const originalText = btn.innerHTML;
         btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 処理中...';
 
         try {
-            const res = await fetch(`${SUPABASE_BASE_URL}/${table}`, {
+            const res = await fetch(`${SUPABASE_URL}/${table}`, {
                 method: 'POST',
                 headers: supabaseHeaders,
                 body: JSON.stringify(payload)
@@ -761,18 +774,18 @@
                 <div style="padding: 8px; border-bottom: 1px solid #e9d8fd; margin-bottom: 6px; background: #fff; border-radius: 6px;">
                     <div style="display: flex; gap: 4px; margin-bottom: 4px;">
                         <input type="text" id="editWNameMob_${idx}" class="edit-input-mob" style="flex:1.5;" value="${w.name}">
-                        <input type="text" id="editWPinMob_${idx}" class="edit-input-mob" style="flex:0.8;" value="${w.pin || ''}" maxlength="4">
+                        <input type="text" id="editWPinMob_${idx}" class="edit-input-mob" style="flex:0.8;" value="${w.pin || ''}" maxlength="8">
                         <input type="number" id="editWWageMob_${idx}" class="edit-input-mob" style="flex:1.2;" value="${w.wage}">
                         <select id="editWTaxMob_${idx}" class="edit-input-mob" style="flex:1.2; padding:4px; font-size:12px;">
-                            <option value="税込" ${w.taxType !== '税別' ? 'selected' : ''}>税込</option>
-                            <option value="税別" ${w.taxType === '税別' ? 'selected' : ''}>税別</option>
+                            <option value="税込" ${w.tax_type !== '税別' ? 'selected' : ''}>税込</option>
+                            <option value="税別" ${w.tax_type === '税別' ? 'selected' : ''}>税別</option>
                         </select>
                     </div>
                     <div style="display: flex; gap: 4px; margin-bottom: 6px;">
                         <select id="editWClosingMob_${idx}" style="flex:1; padding:4px; height:30px; font-size:12px; font-weight:bold;">
                             <option value="31" ${w.closing==31?'selected':''}>月末</option><option value="5" ${w.closing==5?'selected':''}>5日</option><option value="10" ${w.closing==10?'selected':''}>10日</option><option value="15" ${w.closing==15?'selected':''}>15日</option><option value="20" ${w.closing==20?'selected':''}>20日</option><option value="25" ${w.closing==25?'selected':''}>25日</option>
                         </select>
-                        <input type="text" id="editWPayMob_${idx}" class="edit-input-mob" style="flex:1.5; padding:4px; font-size:12px;" value="${w.payDate || ''}">
+                        <input type="text" id="editWPayMob_${idx}" class="edit-input-mob" style="flex:1.5; padding:4px; font-size:12px;" value="${w.pay_date || ''}">
                     </div>
                     <div style="display: flex; justify-content: flex-end; gap: 8px;">
                         <button id="${saveBtnId}" class="btn btn-purple" style="padding: 4px 12px; font-size: 11px; width: auto;">保存</button>
@@ -788,12 +801,12 @@
 
     async function deleteSiteMaster(id) { 
         if(!confirm('本当に現場を削除しますか？')) return; 
-        try { await fetch(`${SUPABASE_BASE_URL}/sites?id=eq.${id}`, { method: 'DELETE', headers: supabaseHeaders }); loadData(); } catch(e){}
+        try { await fetch(`${SUPABASE_URL}/sites?id=eq.${id}`, { method: 'DELETE', headers: supabaseHeaders }); loadData(); } catch(e){}
     }
 
     async function deleteWorkerMaster(id) { 
         if(!confirm('本当に子方を削除しますか？')) return; 
-        try { await fetch(`${SUPABASE_BASE_URL}/workers?id=eq.${id}`, { method: 'DELETE', headers: supabaseHeaders }); loadData(); } catch(e){}
+        try { await fetch(`${SUPABASE_URL}/workers?id=eq.${id}`, { method: 'DELETE', headers: supabaseHeaders }); loadData(); } catch(e){}
     }
 
     async function updateWorkerMaster(id, idx) {
@@ -801,12 +814,12 @@
             name: document.getElementById('editWNameMob_' + idx).value.trim(),
             pin: document.getElementById('editWPinMob_' + idx).value.trim(),
             wage: Number(document.getElementById('editWWageMob_' + idx).value),
-            taxType: document.getElementById('editWTaxMob_' + idx).value,
+            tax_type: document.getElementById('editWTaxMob_' + idx).value,
             closing: Number(document.getElementById('editWClosingMob_' + idx).value),
-            payDate: document.getElementById('editWPayMob_' + idx).value.trim()
+            pay_date: document.getElementById('editWPayMob_' + idx).value.trim()
         };
         try { 
-            await fetch(`${SUPABASE_BASE_URL}/workers?id=eq.${id}`, { method: 'PATCH', headers: supabaseHeaders, body: JSON.stringify(payload) }); 
+            await fetch(`${SUPABASE_URL}/workers?id=eq.${id}`, { method: 'PATCH', headers: supabaseHeaders, body: JSON.stringify(payload) }); 
             alert('子方情報を更新しました'); loadData(); 
         } catch(e){ alert('更新失敗'); }
     }
@@ -847,10 +860,9 @@
         let actualArtificial = 0;
         globalData.attendance.forEach(r => { if (r.site === site) actualArtificial += (r.headcount || 1); });
 
-        // Supabaseへ現場設定数値を非同期で保存保存
         const siteInfo = globalData.sites.find(s => s.name === site);
         if(siteInfo) {
-            fetch(`${SUPABASE_BASE_URL}/sites?id=eq.${siteInfo.id}`, {
+            fetch(`${SUPABASE_URL}/sites?id=eq.${siteInfo.id}`, {
                 method: 'PATCH',
                 headers: supabaseHeaders,
                 body: JSON.stringify({ budget, profit, unit_cost: unitCost, material_cost: materialCost, progress })
