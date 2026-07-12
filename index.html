@@ -607,32 +607,46 @@
     }
 
     async function submitAttendance(e) {
-        e.preventDefault();
-        const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = '送信中...';
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = '送信中...';
+    
+    // globalDataから選択された現場と子方の正しいオブジェクトを抽出する
+    const selectedSiteName = document.getElementById('reportSite').value;
+    const selectedWorkerName = document.getElementById('reportName').value;
+    
+    const payload = {
+        work_date: document.getElementById('reportDate').value,
+        site_name: selectedSiteName,
+        worker_name: selectedWorkerName,
+        headcount: Number(document.getElementById('reportHeadcount').value) || 1,
+        client_company: document.getElementById('reportClientCompany').value || "",
+        remarks: document.getElementById('reportOthers').value || ""
+    };
+    
+    try {
+        const res = await fetch(`${SUPABASE_URL}/attendance`, {
+            method: 'POST',
+            headers: supabaseHeaders,
+            body: JSON.stringify(payload)
+        });
         
-        const payload = {
-            work_date: document.getElementById('reportDate').value,
-            site_name: document.getElementById('reportSite').value,
-            worker_name: document.getElementById('reportName').value,
-            headcount: Number(document.getElementById('reportHeadcount').value) || 1,
-            client_company: document.getElementById('reportClientCompany').value,
-            remarks: document.getElementById('reportOthers').value
-        };
-        try {
-            const res = await fetch(`${SUPABASE_URL}/attendance`, {
-                method: 'POST',
-                headers: supabaseHeaders,
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error();
-            alert('出面を正常に記録しました！');
-            document.getElementById('reportOthers').value = ''; 
-            document.getElementById('reportHeadcount').value = '1'; 
-            document.getElementById('reportClientCompany').value = ''; 
-            loadData(); 
-        } catch (err) { alert('通信エラーが発生しました'); }
-        btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> 出面を記録する';
+        // 💡 エラーの時にコンソールに詳細を出すようにして原因を即特定できるようにする
+        if (!res.ok) {
+            const errLog = await res.json();
+            console.error("Supabaseエラー詳細:", errLog);
+            throw new Error();
+        }
+        
+        alert('出面を正常に記録しました！');
+        document.getElementById('reportOthers').value = ''; 
+        document.getElementById('reportHeadcount').value = '1'; 
+        document.getElementById('reportClientCompany').value = ''; 
+        loadData(); 
+    } catch (err) { 
+        alert('通信エラーが発生しました。ブラウザのコンソール(F12)を確認してください。'); 
     }
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> 出面を記録する';
+}
 
     async function submitExpense() {
         const gas = Number(document.getElementById('expGas').value) || 0;
@@ -884,12 +898,24 @@
         const promptText = `現場: ${site}\n請負金額: ${budget}円\n目標利益率: ${profit}%\n経費込み1人工単価: ${unitCost}円\n想定材料代: ${materialCost}円\n今日までに実際に使った累計人工: ${actualArtificial}人工\n現在の出来高進捗: ${progress}%\n\nこの条件で、請負金額から材料代を引いた予算に対し、あと何人工以内で収めなければならないかの残り予算人工を計算してください。また、現在の進捗度（％）に対して、既に使ってしまった実際の人工（${actualArtificial}人工）のペースが早いか遅いかを分析し、最終的に黒字で逃げ切れるか、あるいは赤字リスクがあるかのガチの評価と、現場で今すぐできる具体的なアドバイスをお願いします。`;
 
         try {
-            // AI用ヘッダーもPC版基準に完全統一
+            // 💡 Edge Functionsの実行には、APIキーを「apikey」と「Authorization」の双方に正しく渡す必要があります
             const res = await fetch('https://gifwnwwxviasnsjqyyzr.supabase.co/functions/v1/ask-right-arm', {
                 method: 'POST',
-                headers: supabaseHeaders,
+                headers: {
+                    "apikey": SUPABASE_KEY,
+                    "Authorization": `Bearer ${SUPABASE_KEY}`,
+                    "Content-Type": "application/json"
+                },
                 body: JSON.stringify({ message: promptText })
             });
+            
+            // 💡 レスポンスが正常（200 OK）でない場合はエラーログを吐かせる
+            if (!res.ok) {
+                const errText = await res.text();
+                console.error("AIファンクションエラー詳細:", errText);
+                throw new Error();
+            }
+            
             const data = await res.json();
             
             if (data.success) {
