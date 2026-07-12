@@ -317,11 +317,10 @@
     let myPin = localStorage.getItem(PIN_KEY);
     let globalData = { attendance: [], workers: [], sites: [], months: [] };
 
+    // 💡 修正：親モバイル側も、認証の邪魔をしていた余計な2行を完全に削除しました
     const supabaseHeaders = {
         'apikey': myLicense || '',
-        'Authorization': `Bearer ${myLicense || ''}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
+        'Content-Type': 'application/json'
     };
 
     document.addEventListener('DOMContentLoaded', function() {
