@@ -720,9 +720,11 @@
             worker_name: document.getElementById('editName').value, 
             site_name: document.getElementById('editSite').value, 
             headcount: Number(document.getElementById('editHeadcount').value) || 1, 
+            // 💡 抜け落ちていた日当（wage）の送信データを追加
+            wage: Number(document.getElementById('editWage').value) || 0,
             client_company: document.getElementById('editClientCompany').value.trim(), 
-            // 💡 データベースのカラム名仕様に合わせて others に変更
-            others: document.getElementById('editOthers').value || "",
+            // 💡 カラム名をテーブルの正しい定義である「remarks」に戻す
+            remarks: document.getElementById('editOthers').value || "",
             gasoline: Number(document.getElementById('editGasoline').value) || 0,
             highway: Number(document.getElementById('editHighway').value) || 0,
             parking: Number(document.getElementById('editParking').value) || 0,
