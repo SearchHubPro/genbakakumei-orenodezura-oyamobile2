@@ -418,6 +418,8 @@
 
             attendance.forEach(r => {
                 const wInfo = workers.find(w => w.name === r.worker_name);
+                // 💡 モーダルが開くときに一意のIDを正しく引き渡せるよう、r.rowにr.idを格納
+                r.row = r.id;
                 r.date = r.work_date;
                 r.name = r.worker_name;
                 r.site = r.site_name;
@@ -719,20 +721,20 @@
             site_name: document.getElementById('editSite').value, 
             headcount: Number(document.getElementById('editHeadcount').value) || 1, 
             client_company: document.getElementById('editClientCompany').value.trim(), 
-            // 💡 remarks から others に修正
+            // 💡 データベースのカラム名仕様に合わせて others に変更
             others: document.getElementById('editOthers').value || "",
             gasoline: Number(document.getElementById('editGasoline').value) || 0,
-            // ...
             highway: Number(document.getElementById('editHighway').value) || 0,
             parking: Number(document.getElementById('editParking').value) || 0,
             misc: Number(document.getElementById('editMisc').value) || 0
         };
         try {
-            await fetch(`${SUPABASE_URL}/attendance?id=eq.${id}`, {
+            const res = await fetch(`${SUPABASE_URL}/attendance?id=eq.${id}`, {
                 method: 'PATCH',
                 headers: supabaseHeaders,
                 body: JSON.stringify(payload)
             });
+            if (!res.ok) throw new Error();
             closeModal(); loadData();
         } catch (e) { alert('保存失敗'); }
     }
