@@ -64,7 +64,6 @@
 </head>
 <body>
 
-<!-- 初期設定画面 -->
 <div id="settingsView" class="container" style="display: none; margin-top: 20px;">
     <div class="card" style="border: 2px solid #3182ce;">
         <h2 style="color: #1a365d; text-align: center; margin-top:0;"><i class="fas fa-mobile-alt"></i> 親方モバイル設定</h2>
@@ -78,7 +77,6 @@
     </div>
 </div>
 
-<!-- エラー画面 -->
 <div id="lockView" style="display: none;">
     <h1 style="color: #c53030; font-size: 50px; margin: 0 0 10px 0;"><i class="fas fa-lock"></i></h1>
     <h2 style="color: #c53030; margin-top:0;">設定エラー</h2>
@@ -86,14 +84,12 @@
     <button class="btn btn-gray" onclick="resetLicense()">設定をやり直す</button>
 </div>
 
-<!-- メイン画面 -->
 <div id="mainApp" style="display: none;">
     <div class="header">
         <h1>俺の出面 - 親方モバイル</h1>
         <div class="comp-name" id="displayCompName">親方モード稼働中</div>
     </div>
 
-    <!-- 入力タブ -->
     <div id="view-report" class="view active container">
         <div class="card">
             <h2 style="font-size: 16px; margin-top:0; color:#1a365d; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;"><i class="fas fa-bolt"></i> 顔パス出面入力（PIN不要）</h2>
@@ -134,9 +130,7 @@
             </form>
             </div>
     </div>
-    </div>
 
-    <!-- 管理タブ -->
     <div id="view-dash" class="view container">
         <button class="btn" style="background:#10b981; color:#fff; margin-bottom:12px;" onclick="openAiModal()">
             <i class="fas fa-robot"></i> 俺の右腕 (AIアシスタント)
@@ -178,7 +172,7 @@
                     <div class="summary-val" id="totalExpense">¥0</div>
                 </div>
                 <div class="summary-card">
-                    <div class="summary-label" style="color:#dc2626;">総支給額</div>
+                    <div class="summary-label">総支給額</div>
                     <div class="summary-val red" id="totalWage">¥0</div>
                 </div>
             </div>
@@ -189,7 +183,6 @@
         <div id="recordList"></div>
     </div>
 
-    <!-- 設定タブ -->
     <div id="view-settings" class="view container">
         <div class="card">
             <h3 style="margin-top:0; color:#1a365d;"><i class="fas fa-building"></i> 現場の追加</h3>
@@ -229,7 +222,11 @@
             <div id="workerMasterList" style="max-height: 350px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #faf5ff; padding: 8px;"></div>
         </div>
 
-        <button class="btn btn-gray" style="margin-top: 30px;" onclick="resetLicense()"><i class="fas fa-sign-out-alt"></i> 設定リセット</button>
+        <button class="btn btn-gray" onclick="resetLicense()"><i class="fas fa-sign-out-alt"></i> 設定リセット</button>
+        
+        <button class="btn" style="margin-top: 16px; background:#ffffff; color:#333333; border: 2px solid #cbd5e0; padding: 16px;" onclick="window.open('https://billing.stripe.com/p/login/cNi6oGaoe0AD0EI0SV4AU00', '_blank')">
+            <i class="fas fa-credit-card"></i> 💳 サブスクの解約・プラン変更
+        </button>
     </div>
 
     <div class="bottom-nav">
@@ -239,7 +236,6 @@
     </div>
 </div>
 
-<!-- 出面・経費データ編集モーダル -->
 <div id="editModal" class="modal">
     <div class="modal-content">
         <h3 style="margin-top:0; color:#1a365d; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">データの編集</h3>
@@ -275,7 +271,6 @@
     </div>
 </div>
 
-<!-- 右腕AIモーダル -->
 <div id="aiModal" class="modal">
     <div class="modal-content">
         <h3 style="display: flex; justify-content: space-between; align-items: center; margin-top:0; border-bottom: 2px solid #edf2f7; padding-bottom: 8px;">
@@ -316,7 +311,7 @@
 </div>
 
 <script>
-    // 💡 PC版から完全にトレースした正しい接続設定とヘッダー
+    // 🔌 PC版から完全にトレースした正しい接続設定とヘッダー
     const SUPABASE_URL = "https://gifwnwwxviasnsjqyyzr.supabase.co/rest/v1";
     const SUPABASE_KEY = "sb_publishable_Vhhe7TrF5XsP6vF_xOm_Kw_P2R0B5wi";
     
@@ -428,9 +423,7 @@
                 r.date = r.work_date;
                 r.name = r.worker_name;
                 r.site = r.site_name;
-                // 💡 マスター単価での上書きをヤメ。DBに保存されている金額（r.wage）をそのまま優先して使う
                 r.wage = (r.wage !== undefined && r.wage !== null) ? r.wage : (wInfo ? wInfo.wage : 20000);
-                // 💡 写真を確認するとカラム名は「others」なので、そのまま連動させる
                 r.others = r.others;
                 r.clientCompany = r.client_company;
             });
@@ -488,9 +481,7 @@
         renderWorkerMasterList();
     }
 
-    function sendNotify(msg) {
-        // 互換性担保用
-    }
+    function sendNotify(msg) {}
 
     function syncReportClientCompany() {
         const siteName = document.getElementById('reportSite').value;
@@ -556,12 +547,10 @@
                 let [targetYear, targetMonth] = fMonth.split('-').map(Number);
                 let startDt, endDt;
 
-                // 💡 画面が「全ての締め日条件（ALL）」のときは、子方の設定を無視して「カレンダー通りの1日〜月末」で判定する
                 if (fClosing === 'ALL') {
                     startDt = new Date(targetYear, targetMonth - 1, 1);
-                    endDt = new Date(targetYear, targetMonth, 0); // 💡 その月の末日を自動計算
+                    endDt = new Date(targetYear, targetMonth, 0);
                 } else {
-                    // 💡 特定の締め日が選ばれているときは、従来通りその締め日のサイクルで計算する
                     const closingNum = Number(fClosing);
                     if (closingNum === 31) {
                         startDt = new Date(targetYear, targetMonth - 1, 1); 
@@ -628,7 +617,6 @@
         e.preventDefault();
         const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = '送信中...';
         
-        // 💡 出面データに加えて、経費入力欄（ガソリン、高速、駐車場、雑費）の数値もまとめて取得
         const payload = {
             work_date: document.getElementById('reportDate').value,
             site_name: document.getElementById('reportSite').value,
@@ -640,7 +628,6 @@
             highway: Number(document.getElementById('expHigh').value) || 0,
             parking: Number(document.getElementById('expPark').value) || 0,
             misc: Number(document.getElementById('expMisc').value) || 0,
-            // 💡 データの所有者を明確にするためライセンスキーを自動追加
             license_key: myLicense
         };
         
@@ -659,8 +646,6 @@
             }
             
             alert('出面と経費を正常に記録しました！');
-            
-            // 💡 送信成功後、出面項目と経費入力欄をすべて綺麗にクリアする
             document.getElementById('reportOthers').value = ''; 
             document.getElementById('reportHeadcount').value = '1'; 
             document.getElementById('reportClientCompany').value = ''; 
@@ -737,10 +722,8 @@
             worker_name: document.getElementById('editName').value, 
             site_name: document.getElementById('editSite').value, 
             headcount: Number(document.getElementById('editHeadcount').value) || 1, 
-            // 💡 写真の通り、実在する「wage」カラムに数値をきっちり乗せる
             wage: Number(document.getElementById('editWage').value) || 0,
             client_company: document.getElementById('editClientCompany').value.trim(), 
-            // 💡 写真の通り、備考欄のカラム名は「others」なので、こちらに連動させる
             others: document.getElementById('editOthers').value || "",
             gasoline: Number(document.getElementById('editGasoline').value) || 0,
             highway: Number(document.getElementById('editHighway').value) || 0,
@@ -767,6 +750,7 @@
         } catch (e) { alert('削除失敗'); }
     }
 
+    // 🛠️ マスター登録（現場・子方）時の埋め込み対応版 ＆ 【子方10人制限ストッパー搭載】
     async function addMaster(action, btn) { 
         let table = action === 'addSite' ? 'sites' : 'workers';
         let payload = {};
@@ -775,7 +759,6 @@
             const v = document.getElementById('newSite').value.trim(); 
             const c = document.getElementById('newClientCompany').value.trim();
             if(!v) return; 
-            // 💡 license_key を追加
             payload = { name: v, company: c, license_key: myLicense };
         } else {
             const w = document.getElementById('newWorker').value.trim(); 
@@ -786,7 +769,13 @@
             const tax = document.getElementById('newTaxType').value;
             if(!w || !pin || !wage) return alert('入力不足');
             if(pin.length !== 4) return alert('PINコードは4桁で入力してください');
-            // 💡 license_key を追加
+
+            // 🛑 【最強のストッパー】現在の登録人数がすでに10人以上かチェックする
+            if (globalData && globalData.workers && globalData.workers.length >= 10) {
+                alert('🛑 これ以上登録できません！\n「基本プラン」の子方上限は10人までです。\n11人以上登録する場合はプランアップが必要です。');
+                return;
+            }
+
             payload = { name: w, pin: pin, wage: Number(wage), closing: Number(closing), pay_date: pay, tax_type: tax, license_key: myLicense };
         }
 
@@ -933,7 +922,6 @@
         const promptText = `現場: ${site}\n請負金額: ${budget}円\n目標利益率: ${profit}%\n経費込み1人工単価: ${unitCost}円\n想定材料代: ${materialCost}円\n今日までに実際に使った累計人工: ${actualArtificial}人工\n現在の出来高進捗: ${progress}%\n\nこの条件で、請負金額から材料代を引いた予算に対し、あと何人工以内で収めなければならないかの残り予算人工を計算してください。また、現在の進捗度（％）に対して、既に使ってしまった実際の人工（${actualArtificial}人工）のペースが早いか遅いかを分析し、最終的に黒字で逃げ切れるか、あるいは赤字リスクがあるかのガチの評価と、現場で今すぐできる具体的なアドバイスをお願いします。`;
 
         try {
-            // 💡 Edge Functionsの実行には、APIキーを「apikey」と「Authorization」の双方に正しく渡す必要があります
             const res = await fetch('https://gifwnwwxviasnsjqyyzr.supabase.co/functions/v1/ask-right-arm', {
                 method: 'POST',
                 headers: {
@@ -944,7 +932,6 @@
                 body: JSON.stringify({ message: promptText })
             });
             
-            // 💡 レスポンスが正常（200 OK）でない場合はエラーログを吐かせる
             if (!res.ok) {
                 const errText = await res.text();
                 console.error("AIファンクションエラー詳細:", errText);
