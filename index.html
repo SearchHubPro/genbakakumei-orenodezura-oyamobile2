@@ -315,8 +315,12 @@
     const SUPABASE_URL = "https://gifwnwwxviasnsjqyyzr.supabase.co/rest/v1";
     const SUPABASE_KEY = "sb_publishable_Vhhe7TrF5XsP6vF_xOm_Kw_P2R0B5wi";
     
-    // 💡 ローカルに保存されているライセンスキーを取得
-    const currentLicense = localStorage.getItem('oreno_boss_license') || "";
+    const LICENSE_KEY = 'oreno_boss_license';
+    const PIN_KEY = 'oreno_boss_pin';
+    const COMP_NAME_KEY = 'oreno_boss_company_name';
+
+    // 💡 確実に保存されているライセンスキーをここで引き出す
+    const currentLicense = localStorage.getItem(LICENSE_KEY) || "";
     
     // 💡 ヘッダーに x-license-key を追加してSupabaseの壁（RLS）を突破する
     const supabaseHeaders = {
@@ -326,10 +330,6 @@
         "Prefer": "return=representation",
         "x-license-key": currentLicense
     };
-
-    const LICENSE_KEY = 'oreno_boss_license';
-    const PIN_KEY = 'oreno_boss_pin';
-    const COMP_NAME_KEY = 'oreno_boss_company_name';
     
     let myLicense = localStorage.getItem(LICENSE_KEY);
     let myPin = localStorage.getItem(PIN_KEY);
@@ -750,7 +750,6 @@
         } catch (e) { alert('削除失敗'); }
     }
 
-    // 🛠️ マスター登録（現場・子方）時の埋め込み対応版 ＆ 【子方10人制限ストッパー搭載】
     async function addMaster(action, btn) { 
         let table = action === 'addSite' ? 'sites' : 'workers';
         let payload = {};
@@ -770,7 +769,6 @@
             if(!w || !pin || !wage) return alert('入力不足');
             if(pin.length !== 4) return alert('PINコードは4桁で入力してください');
 
-            // 🛑 【最強のストッパー】現在の登録人数がすでに10人以上かチェックする
             if (globalData && globalData.workers && globalData.workers.length >= 10) {
                 alert('🛑 これ以上登録できません！\n「基本プラン」の子方上限は10人までです。\n11人以上登録する場合はプランアップが必要です。');
                 return;
@@ -900,15 +898,13 @@
 
         if (!budget || !unitCost) return alert('入力内容に不備があります。');
 
-        let actualArtificial = 0;
-        globalData.attendance.forEach(r => { if (r.site === site) actualArtificial += (r.headcount || 1); });
-
+        // 💡 修正：名前と自分のライセンスキーを条件にして、現場に紐づくAIデータを自動で確実にPATCHする！
         const siteInfo = globalData.sites.find(s => s.name === site);
         if(siteInfo) {
-            fetch(`${SUPABASE_URL}/sites?id=eq.${siteInfo.id}`, {
+            await fetch(`${SUPABASE_URL}/sites?name=eq.${encodeURIComponent(site)}&license_key=eq.${encodeURIComponent(myLicense)}`, {
                 method: 'PATCH',
                 headers: supabaseHeaders,
-                body: JSON.stringify({ budget, profit, unit_cost: unitCost, material_cost: materialCost, progress })
+                body: JSON.stringify({ budget: Number(budget), profit: Number(profit), unit_cost: Number(unitCost), material_cost: Number(materialCost), progress: Number(progress) })
             });
         }
 
@@ -918,6 +914,9 @@
         
         const responseArea = document.getElementById('aiResponse');
         responseArea.innerHTML = '<div style="text-align:center; color:#3182ce; padding-top:20px;"><i class="fas fa-cog fa-spin fa-2x"></i><br><span style="font-size:12px;">分析しています...</span></div>';
+
+        let actualArtificial = 0;
+        globalData.attendance.forEach(r => { if (r.site === site) actualArtificial += (r.headcount || 1); });
 
         const promptText = `現場: ${site}\n請負金額: ${budget}円\n目標利益率: ${profit}%\n経費込み1人工単価: ${unitCost}円\n想定材料代: ${materialCost}円\n今日までに実際に使った累計人工: ${actualArtificial}人工\n現在の出来高進捗: ${progress}%\n\nこの条件で、請負金額から材料代を引いた予算に対し、あと何人工以内で収めなければならないかの残り予算人工を計算してください。また、現在の進捗度（％）に対して、既に使ってしまった実際の人工（${actualArtificial}人工）のペースが早いか遅いかを分析し、最終的に黒字で逃げ切れるか、あるいは赤字リスクがあるかのガチの評価と、現場で今すぐできる具体的なアドバイスをお願いします。`;
 
@@ -942,6 +941,7 @@
             
             if (data.success) {
                 responseArea.innerHTML = `<div style="background:#ebf8ff; border-left:4px solid #3182ce; padding:12px; border-radius:4px; font-size:13px; line-height:1.6; white-space:pre-wrap; font-weight:bold; color:#1a365d;">${data.reply}</div>`;
+                loadData();
             } else {
                 responseArea.innerHTML = `<div style="background:#fff5f5; border:1px solid #fc8181; padding:12px; border-radius:8px; color:#c53030; font-size:12px;">🛑 利用制限またはエラー: ${data.message}</div>`;
             }
