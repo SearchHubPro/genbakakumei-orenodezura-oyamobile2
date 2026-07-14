@@ -632,11 +632,28 @@
         };
         
         try {
-            const res = await fetch(`${SUPABASE_URL}/attendance`, {
-                method: 'POST',
-                headers: supabaseHeaders,
-                body: JSON.stringify(payload)
-            });
+            // 💡 同じ日付・名前・現場のデータがあるかまず検索する
+            const searchUrl = `${SUPABASE_URL}/attendance?work_date=eq.${encodeURIComponent(workDate)}&worker_name=eq.${encodeURIComponent(workerName)}&site_name=eq.${encodeURIComponent(siteName)}`;
+            const checkRes = await fetch(searchUrl, { headers: supabaseHeaders });
+            const existingRecords = await checkRes.json();
+
+            let res;
+            if (existingRecords && existingRecords.length > 0) {
+                // 💡 既存データがあれば、そのIDに対して上書き（PATCH）する
+                const targetId = existingRecords[0].id;
+                res = await fetch(`${SUPABASE_URL}/attendance?id=eq.${targetId}`, {
+                    method: 'PATCH',
+                    headers: supabaseHeaders,
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                // 💡 なければ新規登録（POST）する
+                res = await fetch(`${SUPABASE_URL}/attendance`, {
+                    method: 'POST',
+                    headers: supabaseHeaders,
+                    body: JSON.stringify(payload)
+                });
+            }
             
             if (!res.ok) {
                 const errLog = await res.text();
@@ -645,7 +662,7 @@
                 throw new Error();
             }
             
-            alert('出面と経費を正常に記録しました！');
+            alert('正常に記録（上書き）しました！');
             document.getElementById('reportOthers').value = ''; 
             document.getElementById('reportHeadcount').value = '1'; 
             document.getElementById('reportClientCompany').value = ''; 
