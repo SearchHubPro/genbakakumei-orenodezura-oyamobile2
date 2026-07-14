@@ -632,14 +632,33 @@
         };
         
         try {
-            // 💡 同じ日付・名前・現場のデータがあるかまず検索する
+            // 💡 画面の入力値を取得
+            const workDate = document.getElementById('reportDate').value;
+            const siteName = document.getElementById('reportSite').value;
+            const workerName = document.getElementById('reportName').value;
+
+            const payload = {
+                work_date: workDate,
+                site_name: siteName,
+                worker_name: workerName,
+                headcount: Number(document.getElementById('reportHeadcount').value) || 1,
+                client_company: document.getElementById('reportClientCompany').value || "",
+                others: document.getElementById('reportOthers').value || "",
+                gasoline: Number(document.getElementById('expGas').value) || 0,
+                highway: Number(document.getElementById('expHigh').value) || 0,
+                parking: Number(document.getElementById('expPark').value) || 0,
+                misc: Number(document.getElementById('expMisc').value) || 0,
+                license_key: myLicense
+            };
+
+            // 1. データベースに「同じ日付・名前・現場」の既存データがないか確認する
             const searchUrl = `${SUPABASE_URL}/attendance?work_date=eq.${encodeURIComponent(workDate)}&worker_name=eq.${encodeURIComponent(workerName)}&site_name=eq.${encodeURIComponent(siteName)}`;
             const checkRes = await fetch(searchUrl, { headers: supabaseHeaders });
             const existingRecords = await checkRes.json();
 
             let res;
             if (existingRecords && existingRecords.length > 0) {
-                // 💡 既存データがあれば、そのIDに対して上書き（PATCH）する
+                // 2. 【既存データがある場合】➔ 上書き（PATCH）する
                 const targetId = existingRecords[0].id;
                 res = await fetch(`${SUPABASE_URL}/attendance?id=eq.${targetId}`, {
                     method: 'PATCH',
@@ -647,7 +666,7 @@
                     body: JSON.stringify(payload)
                 });
             } else {
-                // 💡 なければ新規登録（POST）する
+                // 3. 【既存データがない場合】➔ 新規作成（POST）する
                 res = await fetch(`${SUPABASE_URL}/attendance`, {
                     method: 'POST',
                     headers: supabaseHeaders,
