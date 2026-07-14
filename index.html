@@ -109,6 +109,13 @@
                 <label>人数</label>
                 <input type="number" id="reportHeadcount" value="1" min="1" required style="font-weight:bold; color:#dd6b20;">
                 
+                <div style="margin-bottom: 20px; background: #fff3cd; padding: 12px; border-radius: 8px; border: 1px solid #ffeeba;">
+                    <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 0; cursor: pointer; color: #856404; font-weight: bold; font-size: 14px; -webkit-user-select: none; user-select: none;">
+                        <input type="checkbox" id="halfDayCheck" style="width: 24px; height: 24px; margin-bottom: 0; cursor: pointer; -webkit-appearance: checkbox !important; appearance: checkbox !important; accent-color: #d32f2f;">
+                        <span>⚠️ 今回の出面を「半日（人工半分）」にする</span>
+                    </label>
+                </div>
+
                 <label>応援・備考</label>
                 <textarea id="reportOthers" rows="2" placeholder="備考があれば入力"></textarea>
                 
@@ -617,31 +624,34 @@
         e.preventDefault();
         const btn = document.getElementById('submitBtn'); btn.disabled = true; btn.innerText = '送信中...';
         
-        const payload = {
-            work_date: document.getElementById('reportDate').value,
-            site_name: document.getElementById('reportSite').value,
-            worker_name: document.getElementById('reportName').value,
-            headcount: Number(document.getElementById('reportHeadcount').value) || 1,
-            client_company: document.getElementById('reportClientCompany').value || "",
-            others: document.getElementById('reportOthers').value || "",
-            gasoline: Number(document.getElementById('expGas').value) || 0,
-            highway: Number(document.getElementById('expHigh').value) || 0,
-            parking: Number(document.getElementById('expPark').value) || 0,
-            misc: Number(document.getElementById('expMisc').value) || 0,
-            license_key: myLicense
-        };
-        
         try {
             // 💡 画面の入力値を取得
             const workDate = document.getElementById('reportDate').value;
             const siteName = document.getElementById('reportSite').value;
             const workerName = document.getElementById('reportName').value;
 
+            // 💡 人数の基本値を取得
+            let finalHeadcount = Number(document.getElementById('reportHeadcount').value) || 1;
+
+            // 💡 半日チェックが入っているか確認
+            const isHalfDay = document.getElementById('halfDayCheck').checked;
+            if (isHalfDay) {
+                // 人数を半分（0.5倍）にする計算
+                const calculatedHalf = finalHeadcount * 0.5;
+                // 間違い防止の確認ウィンドウを出す
+                if (!confirm(`⚠️ 半日チェックが入っています。\n\n人工を半分にして【 ${calculatedHalf} 人工 】で登録しますがよろしいですか？`)) {
+                    btn.disabled = false; 
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i> 出面と経費を記録する';
+                    return; // キャンセルしたら処理を中断
+                }
+                finalHeadcount = calculatedHalf;
+            }
+
             const payload = {
                 work_date: workDate,
                 site_name: siteName,
                 worker_name: workerName,
-                headcount: Number(document.getElementById('reportHeadcount').value) || 1,
+                headcount: finalHeadcount, // 💡 計算後の人工数をセット
                 client_company: document.getElementById('reportClientCompany').value || "",
                 others: document.getElementById('reportOthers').value || "",
                 gasoline: Number(document.getElementById('expGas').value) || 0,
@@ -650,6 +660,8 @@
                 misc: Number(document.getElementById('expMisc').value) || 0,
                 license_key: myLicense
             };
+
+            // 1. データベースに「同じ日付・名前・現場」の既存データがないか確認する
 
             // 1. データベースに「同じ日付・名前・現場」の既存データがないか確認する
             const searchUrl = `${SUPABASE_URL}/attendance?work_date=eq.${encodeURIComponent(workDate)}&worker_name=eq.${encodeURIComponent(workerName)}&site_name=eq.${encodeURIComponent(siteName)}`;
