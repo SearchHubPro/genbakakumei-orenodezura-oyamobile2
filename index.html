@@ -643,7 +643,8 @@
                 const hc = r.headcount || 0; 
                 
                 const wInfo = globalData.workers.find(w => w.name === r.name);
-                const isTaxExc = wInfo && wInfo.taxType === '税別';
+                // 💡 taxType を tax_type に修正！（アンダーバーが必要です）
+                const isTaxExc = wInfo && wInfo.tax_type === '税別';
                 const baseWage = r.wage * hc;
                 const taxAmount = isTaxExc ? Math.floor(baseWage * 0.1) : 0;
                 const rowWageTotal = baseWage + taxAmount;
