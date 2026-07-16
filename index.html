@@ -346,6 +346,7 @@
     let myLicense = localStorage.getItem(LICENSE_KEY);
     let myPin = localStorage.getItem(PIN_KEY);
     let globalData = { attendance: [], workers: [], sites: [], months: [] };
+    let myLicenseInfo = null; // 💡 データベースから取得したライセンス情報を入れる変数を追加
 
     document.addEventListener('DOMContentLoaded', function() {
         const today = new Date();
@@ -377,6 +378,8 @@
             const json = await res.json();
 
             if (json && json.length > 0 && json[0].is_active) {
+                myLicenseInfo = json[0]; // 💡 認証したライセンス情報を変数に保存！
+                
                 document.getElementById('settingsView').style.display = 'none';
                 document.getElementById('lockView').style.display = 'none';
                 document.getElementById('mainApp').style.display = 'block';
@@ -872,8 +875,10 @@
             if(!w || !pin || !wage) return alert('入力不足');
             if(pin.length !== 4) return alert('PINコードは4桁で入力してください');
 
-            if (globalData && globalData.workers && globalData.workers.length >= 10) {
-                alert('🛑 これ以上登録できません！\n「基本プラン」の子方上限は10人までです。\n11人以上登録する場合はプランアップが必要です。');
+            // 🛑 【最強のストッパー】Supabaseの「max_subcontractors」を基準にする！
+            const maxWorkers = myLicenseInfo ? (myLicenseInfo.max_subcontractors || 10) : 10;
+            if (globalData && globalData.workers && globalData.workers.length >= maxWorkers) {
+                alert(`🛑 これ以上登録できません！\n現在のプランの子方上限は ${maxWorkers} 人までです。\nさらに登録する場合はプランアップが必要です。`);
                 return;
             }
 
