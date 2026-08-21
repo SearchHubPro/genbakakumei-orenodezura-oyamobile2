@@ -81,7 +81,6 @@
     <h1 style="color: #c53030; font-size: 50px; margin: 0 0 10px 0;"><i class="fas fa-lock"></i></h1>
     <h2 style="color: #c53030; margin-top:0;">設定エラー</h2>
     <p id="lockMessage" style="font-weight: bold; color: #4a5568; margin-bottom: 30px;">接続を確認しています...</p>
-    <button class="btn btn-purple" style="margin-bottom: 12px;" onclick="openBillingPortal()"><i class="fas fa-credit-card"></i> お支払い状況を確認する</button>
     <button class="btn btn-gray" onclick="resetLicense()">設定をやり直す</button>
 </div>
 
@@ -108,7 +107,7 @@
                 <input type="text" id="reportClientCompany" readonly placeholder="自社現場の場合は空欄になります" style="background:#edf2f7; color:#4a5568;">
 
                 <label>人数</label>
-                <input type="number" id="reportHeadcount" value="1" min="1" required style="font-weight:bold; color:#dd6b20;">
+                <input type="number" id="reportHeadcount" value="1" min="0" step="0.5" required style="font-weight:bold; color:#dd6b20;">
                 
                 <div style="margin-bottom: 20px; background: #fff3cd; padding: 12px; border-radius: 8px; border: 1px solid #ffeeba;">
                     <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 0; cursor: pointer; color: #856404; font-weight: bold; font-size: 14px; -webkit-user-select: none; user-select: none;">
@@ -256,7 +255,7 @@
         <label>作業日</label><input type="date" id="editDate">
         
         <div style="display: flex; gap: 8px;">
-            <div style="flex: 1;"><label>人数</label><input type="number" id="editHeadcount" min="1"></div>
+            <div style="flex: 1;"><label>人数（半日は0.5）</label><input type="number" id="editHeadcount" min="0" step="0.5"></div>
             <div style="flex: 1.5;"><label>単価(円)</label><input type="number" id="editWage" style="color:#e53e3e;"></div>
         </div>
         
@@ -344,17 +343,29 @@
         "x-license-key": currentLicense
     };
     
+    // 🛡️ HTMLエスケープ（現場名や備考に " や < が入っても画面が壊れないようにする）
+    function esc(v) {
+        if (v === null || v === undefined) return '';
+        return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // 💰 単価が未設定(0/null)のときの最終フォールバック（PC版と数値を統一）
+    const DEFAULT_WAGE = 15000;
+
+    // 📅 指定した年月の「実際の末日」を返す（2月に31日を指定すると翌月に溢れるのを防ぐ）
+    function lastDayOfMonth(year, month) { return new Date(year, month, 0); }
+
+    // 💰 表示・計算に使う単価を決める（DBの単価 → 子方マスターの単価 → 既定値）
+    function resolveWage(record) {
+        if (record.wage !== undefined && record.wage !== null && Number(record.wage) !== 0) return Number(record.wage);
+        const wInfo = globalData.workers.find(w => w.name === record.name);
+        return (wInfo && Number(wInfo.wage)) ? Number(wInfo.wage) : DEFAULT_WAGE;
+    }
+
     let myLicense = localStorage.getItem(LICENSE_KEY);
     let myPin = localStorage.getItem(PIN_KEY);
     let globalData = { attendance: [], workers: [], sites: [], months: [] };
     let myLicenseInfo = null; // 💡 データベースから取得したライセンス情報を入れる変数を追加
-
-    // 💡 XSS対策：DBから来た文字列をHTMLに挿入する前に必ず通す
-    function escapeHtml(str) {
-        return String(str ?? '').replace(/[&<>"']/g, c => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-        }[c]));
-    }
 
     document.addEventListener('DOMContentLoaded', function() {
         const today = new Date();
@@ -382,12 +393,7 @@
 
     async function bootApp() {
         try {
-            // 💡 licensesを直接SELECTするのはやめ、RPC(verify_license)経由に変更。pin_codeが端末に返らなくなる。
-            const res = await fetch(`${SUPABASE_URL}/rpc/verify_license`, {
-                method: 'POST',
-                headers: supabaseHeaders,
-                body: JSON.stringify({ p_license_key: myLicense, p_pin: myPin })
-            });
+            const res = await fetch(`${SUPABASE_URL}/licenses?license_key=eq.${encodeURIComponent(myLicense)}&pin_code=eq.${encodeURIComponent(myPin)}`, { headers: supabaseHeaders });
             const json = await res.json();
 
             if (json && json.length > 0 && json[0].is_active) {
@@ -431,11 +437,6 @@
         localStorage.removeItem(LICENSE_KEY); localStorage.removeItem(PIN_KEY); localStorage.removeItem(COMP_NAME_KEY); location.reload();
     }
 
-    // 🔧 デスク版と挙動を統一：ライセンス未有効時はStripe請求ポータルに誘導する
-    function openBillingPortal() {
-        window.open('https://billing.stripe.com/p/login/cNi6oGaoe0AD0EI0SV4AU00', '_blank');
-    }
-
     function showErrorScreen(msg) {
         document.getElementById('settingsView').style.display = 'none';
         document.getElementById('mainApp').style.display = 'none';
@@ -462,7 +463,7 @@
                 r.date = r.work_date;
                 r.name = r.worker_name;
                 r.site = r.site_name;
-                r.wage = (r.wage !== undefined && r.wage !== null) ? r.wage : (wInfo ? wInfo.wage : 20000);
+                r.wage = Number(r.wage) || 0; // 💡 実際に使う単価は resolveWage() で決める（PC版と統一）
                 r.others = r.others;
                 r.clientCompany = r.client_company;
             });
@@ -500,9 +501,9 @@
         eName.innerHTML = '';
         
         globalData.workers.forEach(w => { 
-            wSelect.innerHTML += `<option value="${escapeHtml(w.name)}">${escapeHtml(w.name)}</option>`; 
-            rName.innerHTML += `<option value="${escapeHtml(w.name)}">${escapeHtml(w.name)}</option>`;
-            eName.innerHTML += `<option value="${escapeHtml(w.name)}">${escapeHtml(w.name)}</option>`;
+            wSelect.innerHTML += `<option value="${esc(w.name)}">${esc(w.name)}</option>`; 
+            rName.innerHTML += `<option value="${esc(w.name)}">${esc(w.name)}</option>`;
+            eName.innerHTML += `<option value="${esc(w.name)}">${esc(w.name)}</option>`;
         });
         if(Array.from(wSelect.options).some(o => o.value === currentWorkerVal)) wSelect.value = currentWorkerVal;
 
@@ -512,8 +513,8 @@
         eSite.innerHTML = '';
         
         globalData.sites.forEach(s => { 
-            rSite.innerHTML += `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`; 
-            eSite.innerHTML += `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`;
+            rSite.innerHTML += `<option value="${esc(s.name)}">${esc(s.name)}</option>`; 
+            eSite.innerHTML += `<option value="${esc(s.name)}">${esc(s.name)}</option>`;
         });
         
         renderSiteMasterList();
@@ -547,7 +548,7 @@
             if (existingRecords && existingRecords.length > 0) {
                 // 🎉 データが見つかったら画面に自動セット
                 const record = existingRecords[0];
-                document.getElementById('reportHeadcount').value = record.headcount || 1;
+                document.getElementById('reportHeadcount').value = (record.headcount === null || record.headcount === undefined) ? 1 : record.headcount;
                 document.getElementById('reportClientCompany').value = record.client_company || "";
                 document.getElementById('reportOthers').value = record.others || "";
                 document.getElementById('expGas').value = record.gasoline || 0;
@@ -604,7 +605,7 @@
             const closingNum = Number(fClosing);
             let [targetYear, targetMonth] = fMonth.split('-').map(Number);
             if (closingNum === 31) {
-                startPeriod = new Date(targetYear, targetMonth - 1, 1); endPeriod = new Date(targetYear, targetMonth - 1, 31);
+                startPeriod = new Date(targetYear, targetMonth - 1, 1); endPeriod = lastDayOfMonth(targetYear, targetMonth);
                 document.getElementById('displayPeriodRange').innerText = `期間: ${targetMonth}/1 〜 ${targetMonth}/月末`;
             } else {
                 startPeriod = new Date(targetYear, targetMonth - 2, closingNum + 1); endPeriod = new Date(targetYear, targetMonth - 1, closingNum);
@@ -637,7 +638,7 @@
                     const closingNum = Number(fClosing);
                     if (closingNum === 31) {
                         startDt = new Date(targetYear, targetMonth - 1, 1); 
-                        endDt = new Date(targetYear, targetMonth - 1, 31);
+                        endDt = lastDayOfMonth(targetYear, targetMonth); // 🔧 翌月分の混入を防ぐ
                     } else {
                         startDt = new Date(targetYear, targetMonth - 2, closingNum + 1); 
                         endDt = new Date(targetYear, targetMonth - 1, closingNum);
@@ -658,12 +659,13 @@
         } else {
             filtered.sort((a, b) => a.date < b.date ? 1 : -1).forEach((r, index) => {
                 const btnId = 'editBtnMob_' + index;
-                const hc = r.headcount || 0; 
+                const hc = (r.headcount === null || r.headcount === undefined) ? 1 : Number(r.headcount); 
                 
                 const wInfo = globalData.workers.find(w => w.name === r.name);
                 // 💡 taxType を tax_type に修正！（アンダーバーが必要です）
                 const isTaxExc = wInfo && wInfo.tax_type === '税別';
-                const baseWage = r.wage * hc;
+                const currentWage = resolveWage(r); // 💡 単価0のときは子方マスターの単価で補う
+                const baseWage = currentWage * hc;
                 const taxAmount = isTaxExc ? Math.floor(baseWage * 0.1) : 0;
                 const rowWageTotal = baseWage + taxAmount;
                 
@@ -675,17 +677,17 @@
                 totalExpense += expenses;
                 totalWage += rowTotal;
 
-                const compBadge = r.clientCompany ? `<br><span class="badge-orange-mob"><i class="fas fa-building"></i> 応援先: ${escapeHtml(r.clientCompany)}</span>` : '';
+                const compBadge = r.clientCompany ? `<br><span class="badge-orange-mob"><i class="fas fa-building"></i> 応援先: ${esc(r.clientCompany)}</span>` : '';
                 const expText = expenses > 0 ? `<br><span style="font-size:11px; color:#059669;">💰 経費: ¥${expenses.toLocaleString()}</span>` : '';
                 const taxText = isTaxExc ? '税別' : '税込';
 
                 list.innerHTML += `
                     <div class="record-card">
-                        <div class="record-header"><span style="color:#1a365d;">${escapeHtml(r.date)}</span><span>👤 ${escapeHtml(r.name)}</span></div>
-                        <div class="record-body"><b>🏢 現場:</b> ${escapeHtml(r.site)} <span style="color:#dd6b20; font-weight:bold;">(${hc}人)</span>${compBadge}${expText}<br><b>📝 備考:</b> ${escapeHtml(r.others) || '-'}</div>
+                        <div class="record-header"><span style="color:#1a365d;">${esc(r.date)}</span><span>👤 ${esc(r.name)}</span></div>
+                        <div class="record-body"><b>🏢 現場:</b> ${esc(r.site)} <span style="color:#dd6b20; font-weight:bold;">(${hc}人)</span>${compBadge}${expText}<br><b>📝 備考:</b> ${esc(r.others) || '-'}</div>
                         <div style="display:flex; justify-content:space-between; align-items:flex-end;">
                             <button id="${btnId}" class="btn btn-gray" style="width:auto; padding:6px 16px; font-size:13px;"><i class="fas fa-edit"></i> 編集</button>
-                            <div class="record-wage">¥${rowTotal.toLocaleString()}<br><span style="font-size:10px; color:#718096; font-weight:normal;">(@${r.wage.toLocaleString()} / ${taxText})</span></div>
+                            <div class="record-wage">¥${rowTotal.toLocaleString()}<br><span style="font-size:10px; color:#718096; font-weight:normal;">(@${currentWage.toLocaleString()} / ${taxText})</span></div>
                         </div>
                     </div>`;
                 setTimeout(() => { document.getElementById(btnId).addEventListener('click', () => openEditModal(r)); }, 0);
@@ -743,7 +745,12 @@
             // 1. データベースに「同じ日付・名前・現場」の既存データがないか確認する
             const searchUrl = `${SUPABASE_URL}/attendance?work_date=eq.${encodeURIComponent(workDate)}&worker_name=eq.${encodeURIComponent(workerName)}&site_name=eq.${encodeURIComponent(siteName)}`;
             const checkRes = await fetch(searchUrl, { headers: supabaseHeaders });
-            const existingRecords = await checkRes.json();
+            const foundRecords = await checkRes.json();
+
+            // 🔧 修正：他社の同名・同現場のデータを掴んで上書きしないよう、自分のデータだけに絞る
+            const existingRecords = Array.isArray(foundRecords)
+                ? foundRecords.filter(x => !x.license_key || x.license_key === myLicense)
+                : [];
 
             let res;
             if (existingRecords && existingRecords.length > 0) {
@@ -771,6 +778,7 @@
             }
             
             alert('正常に記録（上書き）しました！');
+            document.getElementById('halfDayCheck').checked = false; // 🔧 次の入力で意図せず半日になるのを防ぐ
             document.getElementById('reportOthers').value = ''; 
             document.getElementById('reportHeadcount').value = '1'; 
             document.getElementById('reportClientCompany').value = ''; 
@@ -786,47 +794,14 @@
         btn.disabled = false; btn.innerHTML = '<i class="fas fa-paper-plane"></i> 出面と経費を記録する';
     }
 
-    async function submitExpense() {
-        const gas = Number(document.getElementById('expGas').value) || 0;
-        const high = Number(document.getElementById('expHigh').value) || 0;
-        const park = Number(document.getElementById('expPark').value) || 0;
-        const misc = Number(document.getElementById('expMisc').value) || 0;
-
-        if (gas === 0 && high === 0 && park === 0 && misc === 0) return alert('経費の金額を入力してください');
-
-        const btn = document.getElementById('expenseBtn');
-        const originalText = btn.innerHTML;
-        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 送信中...';
-
-        const payload = {
-            work_date: document.getElementById('reportDate').value,
-            site_name: "経費精算",
-            worker_name: document.getElementById('reportName').value, 
-            gasoline: gas, highway: high, parking: park, misc: misc,
-            headcount: 0
-        };
-
-        try {
-            const res = await fetch(`${SUPABASE_URL}/attendance`, {
-                method: 'POST',
-                headers: supabaseHeaders,
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error();
-            alert('経費を正常に記録しました！');
-            document.getElementById('expGas').value = ''; document.getElementById('expHigh').value = '';
-            document.getElementById('expPark').value = ''; document.getElementById('expMisc').value = '';
-            loadData();
-        } catch (err) { alert('通信エラーが発生しました'); } 
-        finally { btn.disabled = false; btn.innerHTML = originalText; }
-    }
+    // 🔧 削除：submitExpense() は存在しないボタン(expenseBtn)を参照する死にコードだったため撤去
 
     function openEditModal(rowObj) {
         document.getElementById('editRow').value = rowObj.row;
         document.getElementById('editDate').value = rowObj.date;
         document.getElementById('editName').value = rowObj.name;
         document.getElementById('editSite').value = rowObj.site;
-        document.getElementById('editWage').value = rowObj.wage;
+        document.getElementById('editWage').value = resolveWage(rowObj); // 💡 0のまま保存して単価が消える事故を防ぐ
         document.getElementById('editHeadcount').value = rowObj.headcount || 1;
         document.getElementById('editClientCompany').value = rowObj.clientCompany || '';
         document.getElementById('editOthers').value = rowObj.others || '';
@@ -846,7 +821,7 @@
             work_date: document.getElementById('editDate').value, 
             worker_name: document.getElementById('editName').value, 
             site_name: document.getElementById('editSite').value, 
-            headcount: Number(document.getElementById('editHeadcount').value) || 1, 
+            headcount: (document.getElementById('editHeadcount').value === '') ? 1 : Number(document.getElementById('editHeadcount').value), 
             wage: Number(document.getElementById('editWage').value) || 0,
             client_company: document.getElementById('editClientCompany').value.trim(), 
             others: document.getElementById('editOthers').value || "",
@@ -856,7 +831,7 @@
             misc: Number(document.getElementById('editMisc').value) || 0
         };
         try {
-            const res = await fetch(`${SUPABASE_URL}/attendance?id=eq.${id}&license_key=eq.${encodeURIComponent(myLicense)}`, {
+            const res = await fetch(`${SUPABASE_URL}/attendance?id=eq.${id}`, {
                 method: 'PATCH',
                 headers: supabaseHeaders,
                 body: JSON.stringify(payload)
@@ -870,7 +845,7 @@
         if(!confirm('本当に削除しますか？')) return;
         const id = document.getElementById('editRow').value;
         try {
-            await fetch(`${SUPABASE_URL}/attendance?id=eq.${id}&license_key=eq.${encodeURIComponent(myLicense)}`, { method: 'DELETE', headers: supabaseHeaders });
+            await fetch(`${SUPABASE_URL}/attendance?id=eq.${id}`, { method: 'DELETE', headers: supabaseHeaders });
             closeModal(); loadData();
         } catch (e) { alert('削除失敗'); }
     }
@@ -926,9 +901,9 @@
         const list = document.getElementById('siteMasterList'); list.innerHTML = '';
         if (globalData.sites.length === 0) { list.innerHTML = '<div style="text-align:center; color:#a0aec0; font-size:13px;">現場なし</div>'; return; }
         globalData.sites.forEach(s => {
-            const cText = s.company ? `<span style="color:#c2410c; font-size:11px;">[${escapeHtml(s.company)}]</span>` : '';
+            const cText = s.company ? `<span style="color:#c2410c; font-size:11px;">[${esc(s.company)}]</span>` : '';
             const btnId = `delSiteBtn_${s.id}`;
-            list.innerHTML += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed #e2e8f0;"><span style="font-size:13px; font-weight:bold;">${escapeHtml(s.name)} ${cText}</span><button id="${btnId}" class="btn btn-red" style="width: auto; padding: 4px 10px; font-size: 11px;">削除</button></div>`;
+            list.innerHTML += `<div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed #e2e8f0;"><span style="font-size:13px; font-weight:bold;">${esc(s.name)} ${cText}</span><button id="${btnId}" class="btn btn-red" style="width: auto; padding: 4px 10px; font-size: 11px;">削除</button></div>`;
             setTimeout(() => { document.getElementById(btnId).addEventListener('click', () => deleteSiteMaster(s.id)); }, 0);
         });
     }
@@ -941,9 +916,9 @@
             list.innerHTML += `
                 <div style="padding: 8px; border-bottom: 1px solid #e9d8fd; margin-bottom: 6px; background: #fff; border-radius: 6px;">
                     <div style="display: flex; gap: 4px; margin-bottom: 4px;">
-                        <input type="text" id="editWNameMob_${idx}" class="edit-input-mob" style="flex:1.5;" value="${escapeHtml(w.name)}">
-                        <input type="text" id="editWPinMob_${idx}" class="edit-input-mob" style="flex:0.8;" value="${escapeHtml(w.pin || '')}" maxlength="4">
-                        <input type="number" id="editWWageMob_${idx}" class="edit-input-mob" style="flex:1.2;" value="${w.wage}">
+                        <input type="text" id="editWNameMob_${idx}" class="edit-input-mob" style="flex:1.5;" value="${esc(w.name)}">
+                        <input type="text" id="editWPinMob_${idx}" class="edit-input-mob" style="flex:0.8;" value="${esc(w.pin)}" maxlength="4">
+                        <input type="number" id="editWWageMob_${idx}" class="edit-input-mob" style="flex:1.2;" value="${esc(w.wage)}">
                         <select id="editWTaxMob_${idx}" class="edit-input-mob" style="flex:1.2; padding:4px; font-size:12px;">
                             <option value="税込" ${w.tax_type !== '税別' ? 'selected' : ''}>税込</option>
                             <option value="税別" ${w.tax_type === '税別' ? 'selected' : ''}>税別</option>
@@ -953,7 +928,7 @@
                         <select id="editWClosingMob_${idx}" style="flex:1; padding:4px; height:30px; font-size:12px; font-weight:bold;">
                             <option value="31" ${w.closing==31?'selected':''}>月末</option><option value="5" ${w.closing==5?'selected':''}>5日</option><option value="10" ${w.closing==10?'selected':''}>10日</option><option value="15" ${w.closing==15?'selected':''}>15日</option><option value="20" ${w.closing==20?'selected':''}>20日</option><option value="25" ${w.closing==25?'selected':''}>25日</option>
                         </select>
-                        <input type="text" id="editWPayMob_${idx}" class="edit-input-mob" style="flex:1.5; padding:4px; font-size:12px;" value="${escapeHtml(w.pay_date || '')}">
+                        <input type="text" id="editWPayMob_${idx}" class="edit-input-mob" style="flex:1.5; padding:4px; font-size:12px;" value="${esc(w.pay_date)}">
                     </div>
                     <div style="display: flex; justify-content: flex-end; gap: 8px;">
                         <button id="${saveBtnId}" class="btn btn-purple" style="padding: 4px 12px; font-size: 11px; width: auto;">保存</button>
@@ -969,15 +944,27 @@
 
     async function deleteSiteMaster(id) { 
         if(!confirm('本当に現場を削除しますか？')) return; 
-        try { await fetch(`${SUPABASE_URL}/sites?id=eq.${id}&license_key=eq.${encodeURIComponent(myLicense)}`, { method: 'DELETE', headers: supabaseHeaders }); loadData(); } catch(e){}
+        try { await fetch(`${SUPABASE_URL}/sites?id=eq.${id}`, { method: 'DELETE', headers: supabaseHeaders }); loadData(); } catch(e){}
     }
 
     async function deleteWorkerMaster(id) { 
         if(!confirm('本当に子方を削除しますか？')) return; 
-        try { await fetch(`${SUPABASE_URL}/workers?id=eq.${id}&license_key=eq.${encodeURIComponent(myLicense)}`, { method: 'DELETE', headers: supabaseHeaders }); loadData(); } catch(e){}
+        try { await fetch(`${SUPABASE_URL}/workers?id=eq.${id}`, { method: 'DELETE', headers: supabaseHeaders }); loadData(); } catch(e){}
     }
 
     async function updateWorkerMaster(id, idx) {
+        const target = globalData.workers[idx];
+        const newNameVal = document.getElementById('editWNameMob_' + idx).value.trim();
+        // 💡 名前を変えたときは過去の出面データの名前も一緒に書き換える（集計から迷子になるのを防ぐ）
+        if (target && newNameVal && newNameVal !== target.name) {
+            if (confirm(`名前を「${target.name}」→「${newNameVal}」に変更します。\n過去の出面データの名前もまとめて書き換えますか？\n\n※キャンセルを選ぶと、過去データは古い名前のまま残り集計から外れます。`)) {
+                try {
+                    await fetch(`${SUPABASE_URL}/attendance?worker_name=eq.${encodeURIComponent(target.name)}&license_key=eq.${encodeURIComponent(myLicense)}`, {
+                        method: 'PATCH', headers: supabaseHeaders, body: JSON.stringify({ worker_name: newNameVal })
+                    });
+                } catch (e) { alert('過去データの名前変更に失敗しました。'); }
+            }
+        }
         const payload = {
             name: document.getElementById('editWNameMob_' + idx).value.trim(),
             pin: document.getElementById('editWPinMob_' + idx).value.trim(),
@@ -987,7 +974,7 @@
             pay_date: document.getElementById('editWPayMob_' + idx).value.trim()
         };
         try { 
-            await fetch(`${SUPABASE_URL}/workers?id=eq.${id}&license_key=eq.${encodeURIComponent(myLicense)}`, { method: 'PATCH', headers: supabaseHeaders, body: JSON.stringify(payload) }); 
+            await fetch(`${SUPABASE_URL}/workers?id=eq.${id}`, { method: 'PATCH', headers: supabaseHeaders, body: JSON.stringify(payload) }); 
             alert('子方情報を更新しました'); loadData(); 
         } catch(e){ alert('更新失敗'); }
     }
@@ -1008,7 +995,7 @@
         const sel = document.getElementById('aiSiteSelect');
         sel.innerHTML = globalData.sites
             .filter(s => !s.company || s.company === "")
-            .map(s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
+            .map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('');
         if (sel.options.length > 0) loadAiSiteData();
         document.getElementById('aiModal').style.display = 'flex';
     }
@@ -1027,8 +1014,8 @@
 
         // 💡 修正：名前と自分のライセンスキーを条件にして、現場に紐づくAIデータを自動で確実にPATCHする！
         const siteInfo = globalData.sites.find(s => s.name === site);
-        if(siteInfo) {
-            await fetch(`${SUPABASE_URL}/sites?name=eq.${encodeURIComponent(site)}&license_key=eq.${encodeURIComponent(myLicense)}`, {
+        if(siteInfo && siteInfo.id) {
+            await fetch(`${SUPABASE_URL}/sites?id=eq.${encodeURIComponent(siteInfo.id)}`, {
                 method: 'PATCH',
                 headers: supabaseHeaders,
                 body: JSON.stringify({ budget: Number(budget), profit: Number(profit), unit_cost: Number(unitCost), material_cost: Number(materialCost), progress: Number(progress) })
@@ -1067,7 +1054,7 @@
             const data = await res.json();
             
             if (data.success) {
-                responseArea.innerHTML = `<div style="background:#ebf8ff; border-left:4px solid #3182ce; padding:12px; border-radius:4px; font-size:13px; line-height:1.6; white-space:pre-wrap; font-weight:bold; color:#1a365d;">${escapeHtml(data.reply)}</div>`;
+                responseArea.innerHTML = `<div style="background:#ebf8ff; border-left:4px solid #3182ce; padding:12px; border-radius:4px; font-size:13px; line-height:1.6; white-space:pre-wrap; font-weight:bold; color:#1a365d;">${data.reply}</div>`;
                 loadData();
             } else {
                 responseArea.innerHTML = `<div style="background:#fff5f5; border:1px solid #fc8181; padding:12px; border-radius:8px; color:#c53030; font-size:12px;">🛑 利用制限またはエラー: ${data.message}</div>`;
