@@ -393,10 +393,15 @@
 
     async function bootApp() {
         try {
-            const res = await fetch(`${SUPABASE_URL}/licenses?license_key=eq.${encodeURIComponent(myLicense)}&pin_code=eq.${encodeURIComponent(myPin)}`, { headers: supabaseHeaders });
+            // 🔐 licenses テーブルは直接読めないので、PINが合ったときだけ結果を返す関数で確認する
+            const res = await fetch(`${SUPABASE_URL}/rpc/verify_license`, {
+                method: 'POST',
+                headers: supabaseHeaders,
+                body: JSON.stringify({ p_license_key: myLicense, p_pin: myPin })
+            });
             const json = await res.json();
 
-            if (json && json.length > 0 && json[0].is_active) {
+            if (Array.isArray(json) && json.length > 0 && json[0].is_active) {
                 myLicenseInfo = json[0]; // 💡 認証したライセンス情報を変数に保存！
                 
                 document.getElementById('settingsView').style.display = 'none';
@@ -615,7 +620,7 @@
 
         if (fWorker !== 'ALL') {
             const wInfo = globalData.workers.find(w => w.name === fWorker);
-            if (wInfo && wInfo.payDate) { const badge = document.getElementById('payDateBadge'); badge.innerText = `支払日: ${wInfo.payDate}`; badge.style.display = 'block'; }
+            if (wInfo && wInfo.pay_date) { const badge = document.getElementById('payDateBadge'); badge.innerText = `支払日: ${wInfo.pay_date}`; badge.style.display = 'block'; }
         }
 
         let filtered = globalData.attendance.filter(r => {
@@ -709,8 +714,15 @@
             const siteName = document.getElementById('reportSite').value;
             const workerName = document.getElementById('reportName').value;
 
-            // 💡 人数の基本値を取得
-            let finalHeadcount = Number(document.getElementById('reportHeadcount').value) || 1;
+            // 💡 人数の基本値を取得（空欄なら1、0＝経費のみはそのまま0で登録する）
+            const hcRaw = document.getElementById('reportHeadcount').value.trim();
+            let finalHeadcount = hcRaw === '' ? 1 : Number(hcRaw);
+            if (!Number.isFinite(finalHeadcount) || finalHeadcount < 0) {
+                alert('人数を正しく入力してください');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-paper-plane"></i> 出面と経費を記録する';
+                return;
+            }
 
             // 💡 半日チェックが入っているか確認
             const isHalfDay = document.getElementById('halfDayCheck').checked;
@@ -796,11 +808,25 @@
 
     // 🔧 削除：submitExpense() は存在しないボタン(expenseBtn)を参照する死にコードだったため撤去
 
+    // 🛡️ マスターから消えた名前・現場でも、選択肢に一時的に足して空欄で上書きされるのを防ぐ
+    function setSelectKeepingValue(selectId, value) {
+        const sel = document.getElementById(selectId);
+        Array.from(sel.querySelectorAll('option[data-temp]')).forEach(o => o.remove());
+        if (value && !Array.from(sel.options).some(o => o.value === value)) {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = value + '（マスターにない）';
+            opt.setAttribute('data-temp', '1');
+            sel.appendChild(opt);
+        }
+        sel.value = value || '';
+    }
+
     function openEditModal(rowObj) {
         document.getElementById('editRow').value = rowObj.row;
         document.getElementById('editDate').value = rowObj.date;
-        document.getElementById('editName').value = rowObj.name;
-        document.getElementById('editSite').value = rowObj.site;
+        setSelectKeepingValue('editName', rowObj.name);
+        setSelectKeepingValue('editSite', rowObj.site);
         document.getElementById('editWage').value = resolveWage(rowObj); // 💡 0のまま保存して単価が消える事故を防ぐ
         document.getElementById('editHeadcount').value = rowObj.headcount || 1;
         document.getElementById('editClientCompany').value = rowObj.clientCompany || '';
@@ -913,6 +939,8 @@
         globalData.workers.forEach((w, idx) => {
             const saveBtnId = `saveWBtn_${idx}`;
             const delBtnId = `delWBtn_${idx}`;
+            const copyBtnId = `copyInvBtn_${idx}`;
+            const reissueBtnId = `reissueInvBtn_${idx}`;
             list.innerHTML += `
                 <div style="padding: 8px; border-bottom: 1px solid #e9d8fd; margin-bottom: 6px; background: #fff; border-radius: 6px;">
                     <div style="display: flex; gap: 4px; margin-bottom: 4px;">
@@ -930,6 +958,14 @@
                         </select>
                         <input type="text" id="editWPayMob_${idx}" class="edit-input-mob" style="flex:1.5; padding:4px; font-size:12px;" value="${esc(w.pay_date)}">
                     </div>
+                    <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:6px; margin-bottom:6px;">
+                        <div style="font-size:11px; color:#166534; font-weight:bold; margin-bottom:4px;">🔑 招待コード（子方アプリの登録用）</div>
+                        <div style="font-family:monospace; font-size:12px; word-break:break-all; color:#1a365d; margin-bottom:6px;">${esc(w.invite_token || '（SQL未実行のため未発行）')}</div>
+                        <div style="display:flex; gap:6px;">
+                            <button id="${copyBtnId}" class="btn btn-green" style="padding:4px 10px; font-size:11px; width:auto;">コピー</button>
+                            <button id="${reissueBtnId}" class="btn btn-gray" style="padding:4px 10px; font-size:11px; width:auto;">再発行</button>
+                        </div>
+                    </div>
                     <div style="display: flex; justify-content: flex-end; gap: 8px;">
                         <button id="${saveBtnId}" class="btn btn-purple" style="padding: 4px 12px; font-size: 11px; width: auto;">保存</button>
                         <button id="${delBtnId}" class="btn btn-red" style="padding: 4px 12px; font-size: 11px; width: auto;">削除</button>
@@ -938,8 +974,35 @@
             setTimeout(() => {
                 document.getElementById(saveBtnId).addEventListener('click', () => updateWorkerMaster(w.id, idx));
                 document.getElementById(delBtnId).addEventListener('click', () => deleteWorkerMaster(w.id));
+                document.getElementById(copyBtnId).addEventListener('click', () => copyInviteMessage(w));
+                document.getElementById(reissueBtnId).addEventListener('click', () => reissueInviteCode(w));
             }, 0);
         });
+    }
+
+    // 🔑 招待コードを、子方にそのまま送れる文章にしてコピーする
+    async function copyInviteMessage(w) {
+        if (!w.invite_token) return alert('招待コードがまだありません。SupabaseでSQLを実行してください。');
+        const msg = `【俺の出面】${w.name} さんの招待コード\n${w.invite_token}\n\n子方アプリの「⚙️ 設定変更」で、このコードと自分の暗証番号(4桁)を入れて登録してください。\n※このコードは他の人に教えないでください。`;
+        try {
+            await navigator.clipboard.writeText(msg);
+            alert('招待コードをコピーしました。LINEなどに貼り付けて本人に送ってください。');
+        } catch (e) {
+            prompt('自動コピーできませんでした。下の文字を長押しでコピーしてください。', w.invite_token);
+        }
+    }
+
+    // 🔄 招待コードの再発行（古いコードで登録したスマホは使えなくなる）
+    async function reissueInviteCode(w) {
+        if (!confirm(`「${w.name}」さんの招待コードを再発行しますか？\n\n今のコードで登録しているスマホは使えなくなり、新しいコードで登録し直しが必要です。`)) return;
+        try {
+            const res = await fetch(`${SUPABASE_URL}/rpc/reissue_invite_token`, {
+                method: 'POST', headers: supabaseHeaders, body: JSON.stringify({ p_worker_id: w.id })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            alert('再発行しました。「コピー」で新しいコードを本人に送ってください。');
+            loadData();
+        } catch (e) { alert('再発行に失敗しました。'); }
     }
 
     async function deleteSiteMaster(id) { 
@@ -955,15 +1018,15 @@
     async function updateWorkerMaster(id, idx) {
         const target = globalData.workers[idx];
         const newNameVal = document.getElementById('editWNameMob_' + idx).value.trim();
-        // 💡 名前を変えたときは過去の出面データの名前も一緒に書き換える（集計から迷子になるのを防ぐ）
-        if (target && newNameVal && newNameVal !== target.name) {
-            if (confirm(`名前を「${target.name}」→「${newNameVal}」に変更します。\n過去の出面データの名前もまとめて書き換えますか？\n\n※キャンセルを選ぶと、過去データは古い名前のまま残り集計から外れます。`)) {
-                try {
-                    await fetch(`${SUPABASE_URL}/attendance?worker_name=eq.${encodeURIComponent(target.name)}&license_key=eq.${encodeURIComponent(myLicense)}`, {
-                        method: 'PATCH', headers: supabaseHeaders, body: JSON.stringify({ worker_name: newNameVal })
-                    });
-                } catch (e) { alert('過去データの名前変更に失敗しました。'); }
+        if (!target) return alert('対象が見つかりません。画面を更新してからやり直してください。');
+        if (!newNameVal) return alert('名前を入力してください');
+        // 💡 名前を変えたときは過去の出面データの名前も一緒に書き換えるか先に確認する（実行は子方情報の保存が成功してから）
+        let renameHistory = false;
+        if (newNameVal !== target.name) {
+            if (globalData.workers.some(w => w.id !== target.id && w.name === newNameVal)) {
+                return alert('同じ名前の子方がすでにいます。別の名前にしてください。');
             }
+            renameHistory = confirm(`名前を「${target.name}」→「${newNameVal}」に変更します。\n過去の出面データの名前もまとめて書き換えますか？\n\n※キャンセルを選ぶと、過去データは古い名前のまま残り集計から外れます。`);
         }
         const payload = {
             name: document.getElementById('editWNameMob_' + idx).value.trim(),
@@ -974,9 +1037,19 @@
             pay_date: document.getElementById('editWPayMob_' + idx).value.trim()
         };
         try { 
-            await fetch(`${SUPABASE_URL}/workers?id=eq.${id}`, { method: 'PATCH', headers: supabaseHeaders, body: JSON.stringify(payload) }); 
-            alert('子方情報を更新しました'); loadData(); 
-        } catch(e){ alert('更新失敗'); }
+            const res = await fetch(`${SUPABASE_URL}/workers?id=eq.${id}`, { method: 'PATCH', headers: supabaseHeaders, body: JSON.stringify(payload) }); 
+            if (!res.ok) throw new Error(await res.text());
+        } catch(e){ alert('更新失敗'); return; }
+
+        if (renameHistory) {
+            try {
+                const r2 = await fetch(`${SUPABASE_URL}/attendance?worker_name=eq.${encodeURIComponent(target.name)}&license_key=eq.${encodeURIComponent(myLicense)}`, {
+                    method: 'PATCH', headers: supabaseHeaders, body: JSON.stringify({ worker_name: newNameVal })
+                });
+                if (!r2.ok) throw new Error(await r2.text());
+            } catch (e) { alert('子方情報は更新しましたが、過去データの名前変更に失敗しました。'); }
+        }
+        alert('子方情報を更新しました'); loadData();
     }
 
     function loadAiSiteData() {
@@ -1030,7 +1103,7 @@
         responseArea.innerHTML = '<div style="text-align:center; color:#3182ce; padding-top:20px;"><i class="fas fa-cog fa-spin fa-2x"></i><br><span style="font-size:12px;">分析しています...</span></div>';
 
         let actualArtificial = 0;
-        globalData.attendance.forEach(r => { if (r.site === site) actualArtificial += (r.headcount || 1); });
+        globalData.attendance.forEach(r => { if (r.site === site) actualArtificial += (r.headcount === null || r.headcount === undefined) ? 1 : Number(r.headcount); });
 
         const promptText = `現場: ${site}\n請負金額: ${budget}円\n目標利益率: ${profit}%\n経費込み1人工単価: ${unitCost}円\n想定材料代: ${materialCost}円\n今日までに実際に使った累計人工: ${actualArtificial}人工\n現在の出来高進捗: ${progress}%\n\nこの条件で、請負金額から材料代を引いた予算に対し、あと何人工以内で収めなければならないかの残り予算人工を計算してください。また、現在の進捗度（％）に対して、既に使ってしまった実際の人工（${actualArtificial}人工）のペースが早いか遅いかを分析し、最終的に黒字で逃げ切れるか、あるいは赤字リスクがあるかのガチの評価と、現場で今すぐできる具体的なアドバイスをお願いします。`;
 
@@ -1054,10 +1127,10 @@
             const data = await res.json();
             
             if (data.success) {
-                responseArea.innerHTML = `<div style="background:#ebf8ff; border-left:4px solid #3182ce; padding:12px; border-radius:4px; font-size:13px; line-height:1.6; white-space:pre-wrap; font-weight:bold; color:#1a365d;">${data.reply}</div>`;
+                responseArea.innerHTML = `<div style="background:#ebf8ff; border-left:4px solid #3182ce; padding:12px; border-radius:4px; font-size:13px; line-height:1.6; white-space:pre-wrap; font-weight:bold; color:#1a365d;">${esc(data.reply)}</div>`;
                 loadData();
             } else {
-                responseArea.innerHTML = `<div style="background:#fff5f5; border:1px solid #fc8181; padding:12px; border-radius:8px; color:#c53030; font-size:12px;">🛑 利用制限またはエラー: ${data.message}</div>`;
+                responseArea.innerHTML = `<div style="background:#fff5f5; border:1px solid #fc8181; padding:12px; border-radius:8px; color:#c53030; font-size:12px;">🛑 利用制限またはエラー: ${esc(data.message)}</div>`;
             }
         } catch (error) {
             responseArea.innerHTML = '<div style="color:red; text-align:center; padding-top:20px; font-size:13px;">通信エラーが発生しました。</div>';
