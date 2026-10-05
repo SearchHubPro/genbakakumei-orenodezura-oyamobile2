@@ -370,6 +370,8 @@
 
     // 💡 確実に保存されているライセンスキーをここで引き出す
     const currentLicense = localStorage.getItem(LICENSE_KEY) || "";
+    // 🔐 PINも一緒に送る（データベースが「キー＋PIN＋有効な会社」を確かめる）
+    const currentPin = localStorage.getItem(PIN_KEY) || "";
     
     // 💡 ヘッダーに x-license-key を追加してSupabaseの壁（RLS）を突破する
     const supabaseHeaders = {
@@ -377,7 +379,8 @@
         "Authorization": `Bearer ${SUPABASE_KEY}`,
         "Content-Type": "application/json",
         "Prefer": "return=representation",
-        "x-license-key": currentLicense
+        "x-license-key": currentLicense,
+        "x-license-pin": currentPin
     };
     
     // 🛡️ HTMLエスケープ（現場名や備考に " や < が入っても画面が壊れないようにする）
