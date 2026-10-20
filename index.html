@@ -232,7 +232,7 @@
         <div class="card">
             <h3 style="margin-top:0; color:#1a365d;"><i class="fas fa-building"></i> 現場の追加</h3>
             <input type="text" id="newSite" placeholder="現場名 (例: 梅田第2ビル)">
-            <input type="text" id="newClientCompany" placeholder="応援先社名 (空欄なら自社現場)" style="color:#c2410c;">
+            <input type="text" id="newClientCompany" list="companyList" autocomplete="off" placeholder="応援先社名 (空欄なら自社現場)" style="color:#c2410c;">
             <button class="btn btn-green" onclick="addMaster('addSite', this)">現場を登録</button>
             <div id="siteMasterList" style="max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; padding: 8px; margin-top:12px;"></div>
         </div>
@@ -300,7 +300,7 @@
         
         <label>名前</label><select id="editName"></select>
         <label>現場名</label><select id="editSite" onchange="syncEditClientCompany()"></select>
-        <label>応援先社名</label><input type="text" id="editClientCompany">
+        <label>応援先社名</label><input type="text" id="editClientCompany" list="companyList" autocomplete="off">
         
         <h4 style="margin-top:0; margin-bottom:8px; font-size:13px; color:#1a365d;">経費</h4>
         <div style="display:flex; gap:8px;">
@@ -2464,5 +2464,38 @@ var NEWS = (function () {
 </script>
 <!-- ===================== お知らせ（news）ここまで ===================== -->
 
+<!-- ===================== 応援先の候補（company list）ここから ===================== -->
+<datalist id="companyList"></datalist>
+<script>
+// 応援先社名の欄を押すと、今までの応援先・請求先の会社名を候補に出す（打ち込みもできる）
+var COMPANY_LIST = (function () {
+  var extra = null;                                   // 請求書の「宛先の会社」で足した会社（1回だけ読む）
+  async function loadExtra() {
+    if (extra) return;
+    extra = [];
+    try {
+      var res = await fetch(SUPABASE_URL + '/billing_clients?select=name', { headers: supabaseHeaders });
+      if (res.ok) extra = (await res.json()).map(function (x) { return x.name; });
+    } catch (err) { /* 読めなくても現場の会社名だけで出す */ }
+  }
+  async function refresh() {
+    await loadExtra();
+    var set = {};
+    var add = function (v) { v = String(v || '').trim(); if (v) set[v] = 1; };
+    (globalData.sites || []).forEach(function (s) { add(s.company); add(s.bill_to); });
+    (globalData.attendance || []).forEach(function (r) { add(r.clientCompany); });
+    (extra || []).forEach(add);
+    var dl = document.getElementById('companyList'); if (!dl) return;
+    dl.innerHTML = '';
+    Object.keys(set).sort(function (a, b) { return a.localeCompare(b, 'ja'); }).forEach(function (n) { var o = document.createElement('option'); o.value = n; dl.appendChild(o); });
+  }
+  return { refresh: refresh };
+})();
+document.addEventListener('focusin', function (ev) {
+  var t = ev.target;
+  if (t && (t.id === 'newClientCompany' || t.id === 'editClientCompany')) { t.setAttribute('list', 'companyList'); t.setAttribute('autocomplete', 'off'); COMPANY_LIST.refresh(); }
+});
+</script>
+<!-- ===================== 応援先の候補（company list）ここまで ===================== -->
 </body>
 </html>
