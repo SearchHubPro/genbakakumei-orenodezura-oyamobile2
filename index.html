@@ -288,9 +288,9 @@
             <i class="fas fa-credit-card"></i> 💳 サブスクの解約・プラン変更
         </button>
 
-        <!-- 💡 新しく追加した「子方枠追加（+10人）」ボタン -->
+        <!-- 💡 新しく追加した「子方枠追加（+5人）」ボタン -->
         <button class="btn" style="margin-top: 12px; background:#3182ce; color:#ffffff; padding: 16px;" onclick="window.open('https://buy.stripe.com/eVqbJ09kagzB2MQcBD4AU0b?client_reference_id=' + myLicense, '_blank')">
-            <i class="fas fa-user-plus"></i> 子方枠追加(+10人)
+            <i class="fas fa-user-plus"></i> 子方枠追加(+5人)
         </button>
     </div>
 
@@ -1066,7 +1066,7 @@
             if(pin.length !== 4) return alert('PINコードは4桁で入力してください');
 
             // 🛑 【最強のストッパー】Supabaseの「max_subcontractors」を基準にする！
-            const maxWorkers = myLicenseInfo ? (myLicenseInfo.max_subcontractors || 10) : 10;
+            const maxWorkers = myLicenseInfo ? (myLicenseInfo.max_subcontractors || 5) : 5;
             if (globalData && globalData.workers && globalData.workers.length >= maxWorkers) {
                 alert(`🛑 これ以上登録できません！\n現在のプランの子方上限は ${maxWorkers} 人までです。\nさらに登録する場合はプランアップが必要です。`);
                 return;
